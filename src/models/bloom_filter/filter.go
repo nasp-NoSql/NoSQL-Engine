@@ -2,7 +2,6 @@ package bloom_filter
 
 import (
 	"encoding/binary"
-	"fmt"
 	"os"
 )
 
@@ -31,9 +30,58 @@ func (filter *BloomFilter) Add(s string) {
 		hashed_value := hash.Hash([]byte(s))
 		index := hashed_value % uint64(filter.m)
 		filter.array[index] = 1
-		print(index, " ")
 	}
-	fmt.Println(filter.array)
+}
+
+func (filter *BloomFilter) AddMultiple(s []string) []byte {
+	for i := 0; i < len(s); i++ {
+		for _, hash := range filter.hashes {
+			hashed_value := hash.Hash([]byte(s[i]))
+			index := hashed_value % uint64(filter.m)
+			filter.array[index] = 1
+		}
+	}
+	return filter.array
+}
+
+func GetBloomFilterArray(s []string) []byte {
+	m := CalculateM(len(s), 0.01)
+	k := CalculateK(len(s), m)
+	hashes, _ := GetHashFunctions("storage/hashes.bin", uint32(k))
+	array := make([]byte, m)
+
+	for i := 0; i < len(s); i++ {
+		for _, hash := range hashes {
+			hashed_value := hash.Hash([]byte(s[i]))
+			index := hashed_value % uint64(m)
+			array[index] = 1
+		}
+	}
+	return array
+}
+
+func GetHashFunctions(filename string, k uint32) ([]HashWithSeed, error) {
+	var hashfs []HashWithSeed
+
+	file, err := os.Open(filename)
+
+	if err != nil {
+		return CreateHashFunctions(k), err
+	}
+
+	defer file.Close()
+
+	hashfs = make([]HashWithSeed, k)
+
+	for i := 0; i < int(k); i++ {
+		hash := make([]byte, 4)
+		if _, err := file.Read(hash); err != nil {
+			return hashfs, err
+		}
+		hashfs[i] = HashWithSeed{hash}
+	}
+
+	return hashfs, nil
 }
 
 func (filter *BloomFilter) Check(s string) bool {
