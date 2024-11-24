@@ -1,5 +1,9 @@
 package hashmap
 
+import (
+	"nosqlEngine/src/models/key_value"
+)
+
 type HashMap struct {
 	data map[string]string
 	size int64
@@ -22,13 +26,12 @@ func (hmap *HashMap) Remove(key string) bool {
 	delete(hmap.data, key)
 	return true
 }
-func (hmap *HashMap) ToRaw() ([]string, []string) {
-	keys := make([]string, 0, len(hmap.data))
-	values := make([]string, 0, len(hmap.data))
+func (hmap *HashMap) ToRaw() []key_value.KeyValue {
+
+	ret := make([]key_value.KeyValue, 0, len(hmap.data))
 
 	for k, v := range hmap.data {
-		keys = append(keys, k)
-		values = append(values, v)
+		ret = append(ret, key_value.NewKeyValue(k, v))
 	}
-	return keys, values
+	return ret
 }
