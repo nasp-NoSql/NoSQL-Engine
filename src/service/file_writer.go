@@ -1,11 +1,11 @@
 package service
 
-type FileWriter struct {
+type FileWriterImpl struct {
 }
 
-func NewFileWriter() *FileWriter {
-	return &FileWriter{}
+func NewFileWriter() *FileWriterImpl {
+	return &FileWriterImpl{}
 }
-func (fw *FileWriter) WriteSS(data []byte) bool {
+func (fw *FileWriterImpl) WriteSS(data []byte) bool {
 	return true
 }

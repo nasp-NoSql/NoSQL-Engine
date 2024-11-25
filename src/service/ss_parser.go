@@ -21,11 +21,8 @@ func NewSSParser(fileWriter *FileWriter) *SSParser {
 	return &SSParser{mems: make([]MemValues, 0), isParsing: false, fileWriter: fileWriter}
 }
 
-func (ssParser *SSParser) AddMemtable(keys []string, values []string) {
-	memValues := MemValues{values: make([]key_value.KeyValue, 0, len(keys))}
-	for i := 0; i < len(keys); i++ {
-		memValues.values = append(memValues.values, key_value.NewKeyValue(keys[i], values[i]))
-	}
+func (ssParser *SSParser) AddMemtable(keyValues []key_value.KeyValue) {
+	memValues := MemValues{values: keyValues}
 	ssParser.mems = append(ssParser.mems, memValues)
 	ssParser.parseNextMem()
 }
@@ -40,10 +37,11 @@ func (ssParser *SSParser) parseNextMem() {
 		- Summary section: contains every 20th key and their offsets in the index section
 		- MetaData section: contains the bloom filter, merkle tree, start offset of the summary section and the size of the summary section
 
-		1. Serialize data section
-		2. Serialize index section
-		3. Serialize summary section
-		4. Serialize meta data section
+
+		1. Serialize data section - 8 bytes for size of value, value
+		2. Serialize index section - 8 bytes for size of key, key, 8 bytes for offset in data section
+		3. Serialize summary section - 8 bytes for size of key, key, 8 bytes for offset in index section
+		4. Serialize meta data section - bloom filter, merkle tree, /*size of bloom  8 bytes for start offset of summary section, 8 bytes for size of summary section
 		5. Write to SS
 
 		Reading from SS:
@@ -72,7 +70,6 @@ func (ssParser *SSParser) parseNextMem() {
 	bytes = append(bytes, indexBytes...)
 	bytes = append(bytes, summaryBytes...)
 	bytes = append(bytes, metaDataBytes...)
-	//dataBytes, offsets := serializeDataGetOffsets(key_value.GetValues(data))
 
 	//file_writer.WriteSS(bytes)
 
