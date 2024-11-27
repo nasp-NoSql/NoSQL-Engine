@@ -14,10 +14,10 @@ type MemValues struct {
 type SSParser struct {
 	mems       []MemValues
 	isParsing  bool // flag to check if SS is being written
-	fileWriter *FileWriter
+	fileWriter FileWriter
 }
 
-func NewSSParser(fileWriter *FileWriter) *SSParser {
+func NewSSParser(fileWriter FileWriter) *SSParser {
 	return &SSParser{mems: make([]MemValues, 0), isParsing: false, fileWriter: fileWriter}
 }
 
@@ -28,6 +28,7 @@ func (ssParser *SSParser) AddMemtable(keyValues []key_value.KeyValue) {
 }
 
 func (ssParser *SSParser) parseNextMem() {
+
 	/*
 		Checks if SS is being written, if not, then it writes the next memtable to SS to avoid collision
 
@@ -36,7 +37,6 @@ func (ssParser *SSParser) parseNextMem() {
 		- Index section: contains all keys and their offsets in the data section
 		- Summary section: contains every 20th key and their offsets in the index section
 		- MetaData section: contains the bloom filter, merkle tree, start offset of the summary section and the size of the summary section
-
 
 		1. Serialize data section - 8 bytes for size of value, value
 		2. Serialize index section - 8 bytes for size of key, key, 8 bytes for offset in data section
@@ -55,12 +55,14 @@ func (ssParser *SSParser) parseNextMem() {
 
 	data := ssParser.mems[0].values
 	ssParser.mems = ssParser.mems[1:]
+
 	key_value.SortByKeys(&data)
 
 	_ = bloom_filter.GetBloomFilterArray(key_value.GetKeys(data))
 	_ = merkle_tree.GetMerkleTree(data)
 
 	dataBytes, dataOffsets := serializeDataGetOffsets(key_value.GetValues(data))
+
 	indexBytes, indexOffsets := serializeIndexGetOffsets(key_value.GetKeys(data), dataOffsets, int64(len(dataBytes)))
 	summaryBytes := getSummaryBytes(key_value.GetKeys(data), indexOffsets)
 	metaDataBytes := getMetaDataBytes(int64(len(dataBytes)+len(indexBytes)), int64(len(summaryBytes)), make([]byte, 0), make([]byte, 0))
@@ -71,7 +73,7 @@ func (ssParser *SSParser) parseNextMem() {
 	bytes = append(bytes, summaryBytes...)
 	bytes = append(bytes, metaDataBytes...)
 
-	//file_writer.WriteSS(bytes)
+	ssParser.fileWriter.WriteSS(bytes)
 
 	if len(ssParser.mems) != 0 {
 		ssParser.parseNextMem()
@@ -86,13 +88,12 @@ func serializeDataGetOffsets(values []string) ([]byte, []int64) {
 
 	currOfset := int64(0)
 	for i := 0; i < len(values); i++ {
-
 		valueBytes := []byte(values[i])
 		valueSizeBytes := intToBytes(int64(len(valueBytes)))
 		dataBytes = append(dataBytes, valueSizeBytes...)
 		dataBytes = append(dataBytes, valueBytes...)
 
-		offsets[i] = currOfset
+		offsets = append(offsets, currOfset)
 		currOfset += 8 + int64(len(valueBytes))
 	}
 

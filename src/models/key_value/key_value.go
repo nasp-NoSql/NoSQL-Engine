@@ -31,7 +31,7 @@ func GetValues(data []KeyValue) []string {
 	return values
 }
 func SortByKeys(data *[]KeyValue) {
-	sort.Slice(data, func(i, j int) bool {
+	sort.Slice(*data, func(i, j int) bool {
 		return (*data)[i].GetKey() < (*data)[j].GetKey()
 	})
 }
