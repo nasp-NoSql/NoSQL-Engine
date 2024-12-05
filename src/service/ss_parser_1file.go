@@ -36,7 +36,7 @@ func (ssParser *SSParser1File) parseNextMem() {
 		1. Data section:8 bytes for key size, key, 8 bytes for size of value, value
 		2. Index section: 8 bytes for size of key, key, 8 bytes for offset in data section
 		3. Summary section: 8 bytes for size of key, key, 8 bytes for offset in index section
-		4. MetaData section: 8 bytes summary size, 8 bytes summary start offset, 8 bytes bloom filter size, bloom filter, 8 bytes merkle tree size, merkle tree
+		4. MetaData section: 8 bytes summary size, 8 bytes summary start offset,  8 bytes merkle tree size, merkle tree 8 bytes bloom filter size, bloom filter, 8 byters filter size
 		
 	*/
 	if ssParser.isParsing {
@@ -56,9 +56,9 @@ func (ssParser *SSParser1File) parseNextMem() {
 	indexBytes, indexOffsets := serializeIndexGetOffsets(keys, keyOffsets, int64(len(dataBytes)))
 	summaryBytes := getSummaryBytes(key_value.GetKeys(data), indexOffsets)
 	summaryOffset := int64(len(dataBytes)+len(indexBytes))
-	metaDataBytes := getMetaDataBytes(int64(len(summaryBytes)),summaryOffset, make([]byte, 0), make([]byte, 0))
+	metaDataBytes := getMetaDataBytes(int64(len(summaryBytes)),summaryOffset, make([]byte, 0), make([]byte, 0), int64(len(data)))
 
-	bytes := make([]byte, 0, len(dataBytes)+len(indexBytes)+len(summaryBytes)+len(metaDataBytes))
+	bytes := make([]byte, len(dataBytes)+len(indexBytes)+len(summaryBytes)+len(metaDataBytes))
 	bytes = append(bytes, dataBytes...)
 	bytes = append(bytes, indexBytes...)
 	bytes = append(bytes, summaryBytes...)
@@ -137,7 +137,7 @@ func getSummaryBytes(keys []string, offsets []int64) []byte {
 	}
 	return dataBytes
 }
-func getMetaDataBytes(summarySize int64, summaryStartOffset int64, bloomFilterBytes []byte, merkleTreeBytes []byte) []byte {
+func getMetaDataBytes(summarySize int64, summaryStartOffset int64, bloomFilterBytes []byte, merkleTreeBytes []byte, dataSize int64) []byte {
 	dataBytes := make([]byte, 0)
 	dataBytes = append(dataBytes, bloomFilterBytes...)
 	dataBytes = append(dataBytes, intToBytes(int64(len(bloomFilterBytes)))...)
@@ -145,6 +145,7 @@ func getMetaDataBytes(summarySize int64, summaryStartOffset int64, bloomFilterBy
 	dataBytes = append(dataBytes, intToBytes(int64(len(merkleTreeBytes)))...)
 	dataBytes = append(dataBytes, intToBytes(summaryStartOffset)...)
 	dataBytes = append(dataBytes, intToBytes(summarySize)...)
+	dataBytes = append(dataBytes, intToBytes(dataSize)...)
 	return dataBytes
 }
 func intToBytes(n int64) []byte {
