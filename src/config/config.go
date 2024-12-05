@@ -12,7 +12,7 @@ type Config struct {
 func getConfig() Config {
 	configFile, _ := ioutil.ReadFile("nosqlEngine/src/config/config")
 	var config Config
-	err = json.Unmarshal(configFile, &config)
+	json.Unmarshal(configFile, &config)
 
 	return config
 }
