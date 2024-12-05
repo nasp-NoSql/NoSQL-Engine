@@ -11,8 +11,8 @@ type FileWriterMock struct {
 	rawBytes []byte
 }
 
-func (fw *FileWriterMock) WriteSS(data []byte) bool {
-	fw.rawBytes = data
+func (fw *FileWriterMock) WriteSS(data ...[]byte) bool {
+	fw.rawBytes = data[0]
 	return true
 }
 

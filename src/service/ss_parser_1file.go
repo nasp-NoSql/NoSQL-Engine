@@ -33,10 +33,10 @@ func (ssParser *SSParser1File) parseNextMem() {
 		Checks if SS is being written, if not, then it writes the next memtable to SS to avoid collision
 
 		SSTable format:
-		1. Data section: 1 byte carry, 8 bytes fo padding size at the end of the block, 8 bytes for key size, key, 8 bytes for size of value, value
+		1. Data section:8 bytes for key size, key, 8 bytes for size of value, value
 		2. Index section: 8 bytes for size of key, key, 8 bytes for offset in data section
 		3. Summary section: 8 bytes for size of key, key, 8 bytes for offset in index section
-		4. MetaData section: 8 bytes for size of summary section, merkle tree, 8 bytes for merkle tree size, bloom filter, 8 bytes for bloom size
+		4. MetaData section: 8 bytes summary size, 8 bytes summary start offset, 8 bytes bloom filter size, bloom filter, 8 bytes merkle tree size, merkle tree
 		
 	*/
 	if ssParser.isParsing {
