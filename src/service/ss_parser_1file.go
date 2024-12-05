@@ -58,12 +58,12 @@ func (ssParser *SSParser1File) parseNextMem() {
 	summaryOffset := int64(len(dataBytes)+len(indexBytes))
 	metaDataBytes := getMetaDataBytes(int64(len(summaryBytes)),summaryOffset, make([]byte, 0), make([]byte, 0), int64(len(data)))
 
-	bytes := make([]byte, len(dataBytes)+len(indexBytes)+len(summaryBytes)+len(metaDataBytes))
+	
+	bytes := make([]byte, 0, len(dataBytes)+len(indexBytes)+len(summaryBytes)+len(metaDataBytes))
 	bytes = append(bytes, dataBytes...)
 	bytes = append(bytes, indexBytes...)
 	bytes = append(bytes, summaryBytes...)
 	bytes = append(bytes, metaDataBytes...)
-
 	ssParser.fileWriter.WriteSS(bytes)
 
 	if len(ssParser.mems) != 0 {
