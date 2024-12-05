@@ -6,7 +6,7 @@ type FileWriterMFile struct {
 func NewFileWriterMFile() *FileWriterMFile {
 	return &FileWriterMFile{}
 }
-func (fw *FileWriterMFile) WriteSS(data []byte) bool {
+func (fw *FileWriterMFile) WriteSS(data ...[]byte) bool {
 	dataBytes := data[0]
 	indexBytes := data[1]
 	summaryBytes := data[2]
