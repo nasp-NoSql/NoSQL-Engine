@@ -13,7 +13,7 @@ type SSParserMfile struct {
 }
 
 func NewSSParserMfile(fileWriter FileWriter) SSParser {
-	return &SSParser1File{mems: make([]MemValues, 0), isParsing: false, fileWriter: fileWriter}
+	return &SSParserMfile{mems: make([]MemValues, 0), isParsing: false, fileWriter: fileWriter}
 }
 
 func (ssParser *SSParserMfile) AddMemtable(keyValues []key_value.KeyValue) {
