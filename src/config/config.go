@@ -1,9 +1,18 @@
 package config
 
+import (
+	"encoding/json"
+	"io/ioutil"
+)
+
 type Config struct {
-	DatabasePath    string `json:"database_path"`
-	BloomFilterSize int    `json:"bloom_filter_size"`
-	MemtableSize    int    `json:"memtable_size"`
-	WalPath         string `json:"wal_path"`
-	SStablePath     string `json:"sstable_path"`
+	blockSize int `json:"block_size"`
+}
+
+func getConfig() Config {
+	configFile, _ := ioutil.ReadFile("nosqlEngine/src/config/config")
+	var config Config
+	err = json.Unmarshal(configFile, &config)
+
+	return config
 }

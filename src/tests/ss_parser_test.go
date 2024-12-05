@@ -1,10 +1,10 @@
 package tests
 
 import (
-	"fmt"
 	"nosqlEngine/src/models/key_value"
 	"nosqlEngine/src/service"
 	"testing"
+	"fmt"
 )
 
 type FileWriterMock struct {
@@ -22,9 +22,10 @@ func TestAddMemtable(t *testing.T) {
 
 	keyValues := make([]key_value.KeyValue, 0, 3)
 	for i := 0; i < 3; i++ {
-		keyValues = append(keyValues, key_value.NewKeyValue("key", "value"))
+		key := fmt.Sprintf("key%d", i+1) 
+		value := fmt.Sprintf("value%d", i+1) 
+		keyValues = append(keyValues, key_value.NewKeyValue(key, value))
 	}
-
 	ssParser.AddMemtable(keyValues)
 
 	raw := fileWriterMock.rawBytes
