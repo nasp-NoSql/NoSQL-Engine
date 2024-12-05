@@ -31,7 +31,7 @@ func (ssParser *SSParserMfile) parseNextMem() {
 		1. Data section:8 bytes for key size, key, 8 bytes for size of value, value
 		2. Index section: 8 bytes for size of key, key, 8 bytes for offset in data section
 		3. Summary section: 8 bytes for size of key, key, 8 bytes for offset in index section
-		4. MetaData section: 8 bytes summary size, 8 bytes summary start offset, 8 bytes bloom filter size, bloom filter, 8 bytes merkle tree size, merkle tree
+		4. MetaData section: 8 bytes summary size, 8 bytes summary start offset,  8 bytes merkle tree size, merkle tree 8 bytes bloom filter size, bloom filter, 8 byters filter size
 		
 	*/
 	if ssParser.isParsing {
@@ -50,7 +50,7 @@ func (ssParser *SSParserMfile) parseNextMem() {
 	dataBytes, keys, keyOffsets := serializeDataGetOffsets(data)
 	indexBytes, indexOffsets := serializeIndexGetOffsets(keys, keyOffsets, int64(0))
 	summaryBytes := getSummaryBytes(key_value.GetKeys(data), indexOffsets)
-	metaDataBytes := getMetaDataBytes(int64(len(summaryBytes)),int64(0), make([]byte, 0), make([]byte, 0))
+	metaDataBytes := getMetaDataBytes(int64(len(summaryBytes)),int64(0), make([]byte, 0), make([]byte, 0), int64(len(data)))
 
 	ssParser.fileWriter.WriteSS(dataBytes, indexBytes, summaryBytes, metaDataBytes)
 
