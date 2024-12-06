@@ -1,11 +1,22 @@
 package service
 
-type Reader struct{}
+import (
+	"nosqlEngine/src/service/block_manager"
+)
 
-func NewReader() *Reader {
-	return &Reader{}
+type Reader struct {
+	rawBytes      []byte
+	block_manager block_manager.BlockManager
 }
 
-func (r *Reader) ReadBlock(size int) ([]byte, error) {
-	return nil, nil
+func NewReader(bm block_manager.BlockManager) *Reader {
+	return &Reader{block_manager: bm}
+}
+
+func (r *Reader) ReadSS(path string, i int) ([]byte, error) {
+
+	data, err := r.block_manager.ReadBlock(i, path)
+
+	return data, err
+
 }

@@ -3,29 +3,32 @@ package service
 import (
 	"encoding/binary"
 	"errors"
+	"nosqlEngine/src/service/block_manager"
+	"nosqlEngine/src/utils"
 )
 
 //flow : data -> index -> summary -> metadata
 
-type SSTableReader struct {
-	data []byte
+type SSRetriever struct {
+	data   []byte
+	reader FileReader
 }
 
-func NewSSTableReader(data []byte) *SSTableReader {
-	return &SSTableReader{data: data}
+func NewSSTableReader(data []byte, bm block_manager.BlockManager) *SSRetriever {
+	return &SSRetriever{data: data, reader: NewReader(bm)}
 }
 
-func (r *SSTableReader) readMetadata() (int64, int64, error) {
-	if len(r.data) < 16 {
+func (r *SSRetriever) readMetadata(data []byte) (int64, int64, error) {
+	if len(data) < 16 {
 		return 0, 0, errors.New("invalid SSTable: insufficient data for metadata")
 	}
-	summaryStart := binary.BigEndian.Uint64(r.data[len(r.data)-16 : len(r.data)-8]) // 8 bytes for summary start offset
-	summarySize := binary.BigEndian.Uint64(r.data[len(r.data)-8:])                  //summary is the last element added to metadata, summary size length is 8 bytes
+	summaryStart := binary.BigEndian.Uint64(r.data[len(data)-16 : len(data)-8]) // 8 bytes for summary start offset
+	summarySize := binary.BigEndian.Uint64(r.data[len(data)-8:])                //summary is the last element added to metadata, summary size length is 8 bytes
 	return int64(summaryStart), int64(summarySize), nil
 }
 
 // Search the summary section for the range containing the key
-func (r *SSTableReader) searchSummary(key string, summaryStart int64, summarySize int64) (int64, error) {
+func (r *SSRetriever) searchSummary(key string, summaryStart int64, summarySize int64) (int64, error) {
 	pos := summaryStart
 
 	currKey := ""
@@ -50,7 +53,7 @@ func (r *SSTableReader) searchSummary(key string, summaryStart int64, summarySiz
 
 // Search the index section for the exact key and retrieve its data offset
 // performing a sequential search in the index section
-func (r *SSTableReader) searchIndex(key string, indexStart int64) (int64, error) {
+func (r *SSRetriever) searchIndex(key string, indexStart int64) (int64, error) {
 	pos := indexStart
 	for pos < int64(len(r.data)) {
 		keySize := binary.BigEndian.Uint64(r.data[pos : pos+8]) // getting the key size, 8 bytes
@@ -68,7 +71,7 @@ func (r *SSTableReader) searchIndex(key string, indexStart int64) (int64, error)
 }
 
 // Retrieve the value from the data section using the offset
-func (r *SSTableReader) readValue(dataOffset int64) (string, error) {
+func (r *SSRetriever) readValue(dataOffset int64) (string, error) {
 	if dataOffset >= int64(len(r.data)) {
 		return "", errors.New("invalid data offset")
 	}
@@ -79,7 +82,16 @@ func (r *SSTableReader) readValue(dataOffset int64) (string, error) {
 }
 
 // awaiting corrections based on the merkel tree and bloom filter implementations, as well as the actual implementation of the write function
-func (r *SSTableReader) GetValue(key string) (string, error) {
+func (r *SSRetriever) GetValue(key string) (string, error) {
+	paths := utils.GetPaths()
+
+	for _, path := range paths {
+		metadata, err := r.reader.ReadSS(path, 0)
+
+		if err != nil {
+			return "", err
+		}
+	}
 
 	// Step 1: Read metadata
 	summaryStart, summarySize, err := r.readMetadata()

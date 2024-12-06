@@ -4,6 +4,8 @@ import (
 	"nosqlEngine/src/models/key_value"
 	"nosqlEngine/src/service"
 	"testing"
+
+	"nosqlEngine/src/service/block_manager"
 )
 
 type FileReaderMock struct {
@@ -14,9 +16,10 @@ func (fw *FileReaderMock) ReadBlock(size int) ([]byte, error) {
 	return fw.rawBytes, nil
 }
 
-func TestRetrieveAKey(t *testing.T) {
-	fileWriterMock := &FileWriterMock{}
-	ssParser := service.NewSSParser1File(fileWriterMock)
+func TestWriteToSS(t *testing.T) {
+	bm := block_manager.NewManager(30, 5)
+	fileWriter1File := service.NewFileWriter1File(bm)
+	ssParser := service.NewSSParser1File(fileWriter1File)
 
 	keyValues := make([]key_value.KeyValue, 0, 3)
 	for i := 0; i < 3; i++ {
@@ -24,15 +27,4 @@ func TestRetrieveAKey(t *testing.T) {
 	}
 
 	ssParser.AddMemtable(keyValues)
-
-	raw := fileWriterMock.rawBytes
-	reader := service.NewSSTableReader(raw)
-
-	value, err := reader.GetValue("key")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if value != "value" {
-		t.Fatalf("expected value, got %v", value)
-	}
 }

@@ -22,8 +22,8 @@ func TestAddMemtable(t *testing.T) {
 
 	keyValues := make([]key_value.KeyValue, 0, 3)
 	for i := 0; i < 3; i++ {
-		key := fmt.Sprintf("key%d", i+1) 
-		value := fmt.Sprintf("value%d", i+1) 
+		key := fmt.Sprintf("key%d", i+1)
+		value := fmt.Sprintf("value%d", i+1)
 		keyValues = append(keyValues, key_value.NewKeyValue(key, value))
 	}
 	ssParser.AddMemtable(keyValues)

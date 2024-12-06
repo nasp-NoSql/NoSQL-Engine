@@ -2,11 +2,14 @@ package service
 
 import (
 	"encoding/binary"
+	"fmt"
 	"nosqlEngine/src/models/bloom_filter"
 	"nosqlEngine/src/models/key_value"
 	"nosqlEngine/src/models/merkle_tree"
 )
+
 const BLOCK_SIZE = 30
+
 type MemValues struct {
 	values []key_value.KeyValue // holds all memtable values that need to be written to SS
 }
@@ -37,7 +40,7 @@ func (ssParser *SSParser1File) parseNextMem() {
 		2. Index section: 8 bytes for size of key, key, 8 bytes for offset in data section
 		3. Summary section: 8 bytes for size of key, key, 8 bytes for offset in index section
 		4. MetaData section: 8 bytes summary size, 8 bytes summary start offset,  8 bytes merkle tree size, merkle tree 8 bytes bloom filter size, bloom filter, 8 byters filter size
-		
+
 	*/
 	if ssParser.isParsing {
 		return
@@ -55,16 +58,20 @@ func (ssParser *SSParser1File) parseNextMem() {
 	dataBytes, keys, keyOffsets := serializeDataGetOffsets(data)
 	indexBytes, indexOffsets := serializeIndexGetOffsets(keys, keyOffsets, int64(len(dataBytes)))
 	summaryBytes := getSummaryBytes(key_value.GetKeys(data), indexOffsets)
-	summaryOffset := int64(len(dataBytes)+len(indexBytes))
-	metaDataBytes := getMetaDataBytes(int64(len(summaryBytes)),summaryOffset, make([]byte, 0), make([]byte, 0), int64(len(data)))
+	summaryOffset := int64(len(dataBytes) + len(indexBytes))
+	metaDataBytes := getMetaDataBytes(int64(len(summaryBytes)), summaryOffset, make([]byte, 0), make([]byte, 0), int64(len(data)))
 
-	
 	bytes := make([]byte, 0, len(dataBytes)+len(indexBytes)+len(summaryBytes)+len(metaDataBytes))
 	bytes = append(bytes, dataBytes...)
 	bytes = append(bytes, indexBytes...)
 	bytes = append(bytes, summaryBytes...)
 	bytes = append(bytes, metaDataBytes...)
-	ssParser.fileWriter.WriteSS(bytes)
+	if ssParser.fileWriter.WriteSS(bytes) {
+		fmt.Print("SS written successfully")
+	} else {
+
+		fmt.Print("SS write failed")
+	}
 
 	if len(ssParser.mems) != 0 {
 		ssParser.parseNextMem()
@@ -85,9 +92,9 @@ func serializeDataGetOffsets(keyValues []key_value.KeyValue) ([]byte, []string, 
 		// key and value blocks
 		value := append(sizeAndValueToBytes(keyValues[i].GetKey()), sizeAndValueToBytes(keyValues[i].GetValue())...)
 
-		if len(value) + currBlockSize > BLOCK_SIZE { // if block is full add to dataBytes
+		if len(value)+currBlockSize > BLOCK_SIZE { // if block is full add to dataBytes
 			if currBlockSize != 0 { // if value is not bigger then the whole block
-				keys = append(keys, keyValues[i].GetKey())  // keyValue| keyValue |keyValue
+				keys = append(keys, keyValues[i].GetKey()) // keyValue| keyValue |keyValue
 				offsets = append(offsets, currOffset)
 				currBlockSize = len(value)
 			}
@@ -103,7 +110,7 @@ func serializeDataGetOffsets(keyValues []key_value.KeyValue) ([]byte, []string, 
 }
 
 func serializeIndexGetOffsets(keys []string, keyOffsets []int64, startOffset int64) ([]byte, []int64) {
-	
+
 	currOffset := startOffset
 	indexOffsets := []int64{currOffset}
 	dataBytes := make([]byte, 0)
@@ -111,7 +118,7 @@ func serializeIndexGetOffsets(keys []string, keyOffsets []int64, startOffset int
 
 	for i := 0; i < len(keys); i++ {
 		value := append(sizeAndValueToBytes(keys[i]), intToBytes(keyOffsets[i])...)
-		if len(value) + currBlockSize > BLOCK_SIZE { // if block is full add to dataBytes
+		if len(value)+currBlockSize > BLOCK_SIZE { // if block is full add to dataBytes
 			if currBlockSize != 0 { // if value is not bigger then the whole block
 				indexOffsets = append(indexOffsets, currOffset)
 				currBlockSize = len(value)
