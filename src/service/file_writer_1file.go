@@ -19,7 +19,8 @@ func NewFileWriter1File(bm block_manager.BlockManager) *FileWriter1File {
 func (fw *FileWriter1File) WriteSS(data ...[]byte) bool {
 	fullRaw := data[0]
 	_ = fullRaw
-	filename := fmt.Sprintf("../../data/sstable/sstable_%s.dat", generateFileName())
+	fmt.Println("Data length: ", len(fullRaw))
+	filename := fmt.Sprintf("../../data/sstable/sstable_%s.db", generateFileName())
 	flag := fw.block_manager.WriteBlocks(fullRaw, filename)
 
 	return flag

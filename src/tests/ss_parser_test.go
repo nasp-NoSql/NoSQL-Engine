@@ -34,5 +34,5 @@ func TestAddMemtable(t *testing.T) {
 		t.Error("Expected raw bytes to be written to FileWriterMock, got 0 bytes")
 	}
 	fmt.Printf("Raw bytes: %v\n", raw)
-
+	fmt.Print("Length of raw bytes: ", len(raw), "\n")
 }

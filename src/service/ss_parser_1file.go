@@ -66,6 +66,7 @@ func (ssParser *SSParser1File) parseNextMem() {
 	bytes = append(bytes, indexBytes...)
 	bytes = append(bytes, summaryBytes...)
 	bytes = append(bytes, metaDataBytes...)
+	fmt.Print("Data length: ", len(bytes), " in  parser \n")
 	if ssParser.fileWriter.WriteSS(bytes) {
 		fmt.Print("SS written successfully")
 	} else {
@@ -146,12 +147,12 @@ func getSummaryBytes(keys []string, offsets []int64) []byte {
 }
 func getMetaDataBytes(summarySize int64, summaryStartOffset int64, bloomFilterBytes []byte, merkleTreeBytes []byte, dataSize int64) []byte {
 	dataBytes := make([]byte, 0)
-	dataBytes = append(dataBytes, bloomFilterBytes...)
 	dataBytes = append(dataBytes, intToBytes(int64(len(bloomFilterBytes)))...)
-	dataBytes = append(dataBytes, merkleTreeBytes...)
+	dataBytes = append(dataBytes, bloomFilterBytes...)
 	dataBytes = append(dataBytes, intToBytes(int64(len(merkleTreeBytes)))...)
-	dataBytes = append(dataBytes, intToBytes(summaryStartOffset)...)
+	dataBytes = append(dataBytes, merkleTreeBytes...)
 	dataBytes = append(dataBytes, intToBytes(summarySize)...)
+	dataBytes = append(dataBytes, intToBytes(summaryStartOffset)...)
 	dataBytes = append(dataBytes, intToBytes(dataSize)...)
 	return dataBytes
 }

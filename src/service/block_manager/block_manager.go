@@ -32,18 +32,42 @@ func generateFileName() string {
 func (bm *blockManager) WriteBlocks(data []byte, filename string) bool {
 	numberOfBlocks := int(math.Ceil(float64(len(data)) / float64(bm.BLOCKSIZE)))
 
-	for i := 0; i < numberOfBlocks; i++ {
-		offset := i * bm.BLOCKSIZE
-		if i*bm.BLOCKSIZE+bm.BLOCKSIZE > len(data) {
-			bm.writeBlockToDisk(data[i*bm.BLOCKSIZE:], filename, offset)
-			return true
+	// for i := 0; i < numberOfBlocks; i++ {
+	// 	offset := i * bm.BLOCKSIZE
+	// 	if i*bm.BLOCKSIZE+bm.BLOCKSIZE > len(data) {
+	// 		bm.writeBlockToDisk(data[i*bm.BLOCKSIZE:], filename, offset)
+	// 		return true
+	// 	}
+	// 	blockData := data[i*bm.BLOCKSIZE : (i+1)*bm.BLOCKSIZE]
+	// 	written := bm.writeBlockToDisk(blockData, filename, offset)
+	// 	if !written {
+	// 		fmt.Println("Error writing block to disk")
+	// 		return false
+	// 	}
+	// 	bm.blockCache.Put(filename, i, blockData)
+	// }
+
+	// we will do write blocks in reverse order
+	k := 0
+	j := 0
+	blockData := make([]byte, bm.BLOCKSIZE)
+	for i := numberOfBlocks - 1; i >= 0; i-- {
+		offset := j * bm.BLOCKSIZE
+		if k == 0 {
+			blockData = data[i*bm.BLOCKSIZE:]
+			k++
+		} else {
+			blockData = data[i*bm.BLOCKSIZE : (i+1)*bm.BLOCKSIZE]
 		}
-		blockData := data[i*bm.BLOCKSIZE : (i+1)*bm.BLOCKSIZE]
 		written := bm.writeBlockToDisk(blockData, filename, offset)
 		if !written {
 			fmt.Println("Error writing block to disk")
 			return false
+		} else {
+			fmt.Println("Block written successfully")
+			fmt.Println("Block data: ", blockData)
 		}
+		j++
 		bm.blockCache.Put(filename, i, blockData)
 	}
 

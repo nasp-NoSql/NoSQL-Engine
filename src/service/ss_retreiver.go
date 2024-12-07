@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"nosqlEngine/src/service/block_manager"
 	"nosqlEngine/src/utils"
 )
@@ -10,36 +11,59 @@ import (
 //flow : data -> index -> summary -> metadata
 
 type SSRetriever struct {
-	data   []byte
 	reader FileReader
 }
 
-func NewSSTableReader(data []byte, bm block_manager.BlockManager) *SSRetriever {
-	return &SSRetriever{data: data, reader: NewReader(bm)}
+func NewSSRetriever(reader FileReader) *SSRetriever {
+	return &SSRetriever{reader: reader}
 }
 
-func (r *SSRetriever) readMetadata(data []byte) (int64, int64, error) {
+func NewSSTableReader(bm block_manager.BlockManager) *SSRetriever {
+	return &SSRetriever{reader: NewReader(bm)}
+}
+
+func (r *SSRetriever) readMetadata(data []byte) (int64, int64, []byte, []byte, error) {
 	if len(data) < 16 {
-		return 0, 0, errors.New("invalid SSTable: insufficient data for metadata")
+		return 0, 0, nil, nil, errors.New("invalid SSTable: insufficient data for metadata")
 	}
-	summaryStart := binary.BigEndian.Uint64(r.data[len(data)-16 : len(data)-8]) // 8 bytes for summary start offset
-	summarySize := binary.BigEndian.Uint64(r.data[len(data)-8:])                //summary is the last element added to metadata, summary size length is 8 bytes
-	return int64(summaryStart), int64(summarySize), nil
+	offset := 0
+	bfSize := binary.BigEndian.Uint64(data[offset:8]) // 8 bytes for bloom filter size
+
+	offset += 8
+	bfBytes := data[offset : offset+int(bfSize)] // bloom filter bytes
+
+	offset += int(bfSize)
+
+	mtSize := binary.BigEndian.Uint64(data[offset : offset+8]) // 8 bytes for merkle tree size
+
+	offset += 8
+
+	mtBytes := data[offset : offset+int(mtSize)] // merkle tree bytes
+
+	offset += int(mtSize)
+
+	summarySize := binary.BigEndian.Uint64(data[offset : offset+8]) // 8 bytes for summary size
+
+	offset += 8
+
+	summaryStart := binary.BigEndian.Uint64(data[offset : offset+8]) // 8 bytes for summary start offset
+
+	return int64(summaryStart), int64(summarySize), bfBytes, mtBytes, nil
 }
 
 // Search the summary section for the range containing the key
-func (r *SSRetriever) searchSummary(key string, summaryStart int64, summarySize int64) (int64, error) {
+func (r *SSRetriever) searchSummary(key string, summaryStart int64, summarySize int64, data []byte) (int64, error) {
 	pos := summaryStart
 
 	currKey := ""
 	indexOffset := summaryStart
 	for pos < summaryStart+summarySize {
 
-		keySize := binary.BigEndian.Uint64(r.data[pos : pos+8])
+		keySize := binary.BigEndian.Uint64(data[pos : pos+8])
 		pos += 8
-		currKey = string(r.data[pos : pos+int64(keySize)])
+		currKey = string(data[pos : pos+int64(keySize)])
 		pos += int64(keySize)
-		indexOffset = int64(binary.BigEndian.Uint64(r.data[pos : pos+8]))
+		indexOffset = int64(binary.BigEndian.Uint64(data[pos : pos+8]))
 		pos += 8
 
 		if currKey >= key {
@@ -53,14 +77,14 @@ func (r *SSRetriever) searchSummary(key string, summaryStart int64, summarySize 
 
 // Search the index section for the exact key and retrieve its data offset
 // performing a sequential search in the index section
-func (r *SSRetriever) searchIndex(key string, indexStart int64) (int64, error) {
+func (r *SSRetriever) searchIndex(key string, indexStart int64, data []byte) (int64, error) {
 	pos := indexStart
-	for pos < int64(len(r.data)) {
-		keySize := binary.BigEndian.Uint64(r.data[pos : pos+8]) // getting the key size, 8 bytes
+	for pos < int64(len(data)) {
+		keySize := binary.BigEndian.Uint64(data[pos : pos+8]) // getting the key size, 8 bytes
 		pos += 8
-		currKey := string(r.data[pos : pos+int64(keySize)]) // geting the key value, key size bytes
+		currKey := string(data[pos : pos+int64(keySize)]) // geting the key value, key size bytes
 		pos += int64(keySize)
-		dataOffset := binary.BigEndian.Uint64(r.data[pos : pos+8]) // getting the data offset, 8 bytes
+		dataOffset := binary.BigEndian.Uint64(data[pos : pos+8]) // getting the data offset, 8 bytes
 		pos += 8
 
 		if currKey == key {
@@ -71,13 +95,13 @@ func (r *SSRetriever) searchIndex(key string, indexStart int64) (int64, error) {
 }
 
 // Retrieve the value from the data section using the offset
-func (r *SSRetriever) readValue(dataOffset int64) (string, error) {
-	if dataOffset >= int64(len(r.data)) {
+func (r *SSRetriever) readValue(dataOffset int64, data []byte) (string, error) {
+	if dataOffset >= int64(len(data)) {
 		return "", errors.New("invalid data offset")
 	}
-	valueSize := binary.BigEndian.Uint64(r.data[dataOffset : dataOffset+8]) // getting the value size, 8 bytes
+	valueSize := binary.BigEndian.Uint64(data[dataOffset : dataOffset+8]) // getting the value size, 8 bytes
 	dataOffset += 8
-	value := string(r.data[dataOffset : dataOffset+int64(valueSize)]) // getting the value, value size bytes
+	value := string(data[dataOffset : dataOffset+int64(valueSize)]) // getting the value, value size bytes
 	return value, nil
 }
 
@@ -88,29 +112,15 @@ func (r *SSRetriever) GetValue(key string) (string, error) {
 	for _, path := range paths {
 		metadata, err := r.reader.ReadSS(path, 0)
 
+		sumStart, sumSize, bf, mt, err := r.readMetadata(metadata)
+
+		fmt.Println(sumStart, sumSize, bf, mt)
+
 		if err != nil {
 			return "", err
 		}
 	}
 
-	// Step 1: Read metadata
-	summaryStart, summarySize, err := r.readMetadata()
-	if err != nil {
-		return "", err
-	}
+	return "", nil
 
-	// Step 2: Search summary section
-	indexOffset, err := r.searchSummary(key, summaryStart, summarySize)
-	if err != nil {
-		return "", err
-	}
-
-	// Step 3: Search index section
-	dataOffset, err := r.searchIndex(key, indexOffset)
-	if err != nil {
-		return "", err
-	}
-
-	// Step 4: Read value from data section
-	return r.readValue(dataOffset)
 }

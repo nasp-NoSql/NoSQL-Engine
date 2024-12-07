@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"fmt"
 	"nosqlEngine/src/models/key_value"
 	"nosqlEngine/src/service"
 	"testing"
@@ -23,8 +24,35 @@ func TestWriteToSS(t *testing.T) {
 
 	keyValues := make([]key_value.KeyValue, 0, 3)
 	for i := 0; i < 3; i++ {
-		keyValues = append(keyValues, key_value.NewKeyValue("key", "value"))
+		key := fmt.Sprintf("key%d", i+1)
+		value := fmt.Sprintf("value%d", i+1)
+		keyValues = append(keyValues, key_value.NewKeyValue(key, value))
 	}
 
 	ssParser.AddMemtable(keyValues)
+}
+
+func TestRetrieveAKey(t *testing.T) {
+	bm := block_manager.NewManager(30, 5)
+	fileWriter1File := service.NewFileWriter1File(bm)
+	ssParser := service.NewSSParser1File(fileWriter1File)
+
+	keyValues := make([]key_value.KeyValue, 0, 3)
+	for i := 0; i < 3; i++ {
+		key := fmt.Sprintf("key%d", i+1)
+		value := fmt.Sprintf("value%d", i+1)
+		keyValues = append(keyValues, key_value.NewKeyValue(key, value))
+	}
+
+	ssParser.AddMemtable(keyValues)
+
+	reader := service.NewReader(bm)
+	retriever := service.NewSSRetriever(reader)
+
+	value, err := retriever.GetValue("key")
+	if err != nil {
+		t.Errorf("Error retrieving key: %s", err)
+	}
+
+	fmt.Println(value)
 }

@@ -5,7 +5,6 @@ import (
 )
 
 type Reader struct {
-	rawBytes      []byte
 	block_manager block_manager.BlockManager
 }
 
