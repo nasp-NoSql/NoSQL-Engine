@@ -2,14 +2,12 @@ package service
 
 import (
 	"fmt"
-
 	"nosqlEngine/src/service/block_manager"
 
 	"github.com/google/uuid"
 )
 
 type FileWriter1File struct {
-	rawBytes      []byte
 	block_manager block_manager.BlockManager
 }
 
