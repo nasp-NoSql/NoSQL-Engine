@@ -1,17 +1,18 @@
-package service
+package ss_parser
 
 import (
 	"nosqlEngine/src/models/bloom_filter"
 	"nosqlEngine/src/models/key_value"
+	"nosqlEngine/src/service/file_writer"
 )
 
 type SSParserMfile struct {
 	mems       []MemValues
 	isParsing  bool // flag to check if SS is being written
-	fileWriter FileWriter
+	fileWriter file_writer.FileWriter
 }
 
-func NewSSParserMfile(fileWriter FileWriter) SSParser {
+func NewSSParserMfile(fileWriter file_writer.FileWriter) SSParser {
 	return &SSParserMfile{mems: make([]MemValues, 0), isParsing: false, fileWriter: fileWriter}
 }
 

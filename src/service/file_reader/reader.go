@@ -1,4 +1,4 @@
-package service
+package file_reader
 
 import (
 	"nosqlEngine/src/service/block_manager"

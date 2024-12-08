@@ -1,10 +1,10 @@
-package service
+package ss_parser
 
 import (
 	"encoding/binary"
-	"fmt"
 	"nosqlEngine/src/models/bloom_filter"
 	"nosqlEngine/src/models/key_value"
+	"nosqlEngine/src/service/file_writer"
 )
 
 const BLOCK_SIZE = 30
@@ -16,10 +16,10 @@ type MemValues struct {
 type SSParser1File struct {
 	mems       []MemValues
 	isParsing  bool // flag to check if SS is being written
-	fileWriter FileWriter
+	fileWriter file_writer.FileWriter
 }
 
-func NewSSParser1File(fileWriter FileWriter) SSParser {
+func NewSSParser1File(fileWriter file_writer.FileWriter) SSParser {
 	return &SSParser1File{mems: make([]MemValues, 0), isParsing: false, fileWriter: fileWriter}
 }
 
@@ -65,14 +65,8 @@ func (ssParser *SSParser1File) parseNextMem() {
 	bytes = append(bytes, indexBytes...)
 	bytes = append(bytes, summaryBytes...)
 	bytes = append(bytes, metaDataBytes...)
-	fmt.Print("Data length: ", len(bytes), " in  parser \n")
-	if ssParser.fileWriter.WriteSS(bytes) {
-		fmt.Print("SS written successfully")
-	} else {
-
-		fmt.Print("SS write failed")
-	}
-
+	ssParser.fileWriter.WriteSS(bytes)
+	
 	if len(ssParser.mems) != 0 {
 		ssParser.parseNextMem()
 	} else {

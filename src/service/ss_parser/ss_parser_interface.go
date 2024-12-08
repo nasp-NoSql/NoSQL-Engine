@@ -1,4 +1,4 @@
-package service
+package ss_parser
 
 import "nosqlEngine/src/models/key_value"
 

@@ -5,21 +5,22 @@ import (
 	"errors"
 	"fmt"
 	"nosqlEngine/src/service/block_manager"
+	"nosqlEngine/src/service/file_reader"
 	"nosqlEngine/src/utils"
 )
 
 //flow : data -> index -> summary -> metadata
 
 type SSRetriever struct {
-	reader FileReader
+	reader file_reader.FileReader
 }
 
-func NewSSRetriever(reader FileReader) *SSRetriever {
+func NewSSRetriever(reader file_reader.FileReader) *SSRetriever {
 	return &SSRetriever{reader: reader}
 }
 
 func NewSSTableReader(bm block_manager.BlockManager) *SSRetriever {
-	return &SSRetriever{reader: NewReader(bm)}
+	return &SSRetriever{reader: file_reader.NewReader(bm)}
 }
 
 func (r *SSRetriever) readMetadata(data []byte) (int64, int64, []byte, []byte, error) {

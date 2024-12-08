@@ -1,4 +1,4 @@
-package service
+package file_writer
 
 import (
 	"fmt"
