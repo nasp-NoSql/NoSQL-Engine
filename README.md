@@ -13,15 +13,12 @@ The features and functionality are being actively developed, and there may be in
 - [Introduction](#introduction)  
 - [Features](#features)  
 - [Installation](#installation)  
-- [Usage](#usage)
-- [How It Works](#how-it-works)  
-  - [Architecture Overview](#architecture-overview)  
+- [Usage](#usage) 
+- [Architecture Overview](#architecture-overview)  
   - [Data Storage](#data-storage)  
   - [Indexing](#indexing)  
   - [Querying](#querying)  
-  - [Consistency](#consistency)  
 - [Configuration](#configuration)  
-- [Contributing](#contributing)  
 - [License](#license)  
 
 ---
@@ -31,9 +28,9 @@ The features and functionality are being actively developed, and there may be in
 
 ---
 
-## Features
+## Features 
 
-### Available Features
+### Available Features 🚀
 - **SSTable-Based Storage**: Efficient immutable storage for data.
 - **Write-Ahead Logging (WAL)**: Protects data integrity by logging changes before committing them to disk.
 - **Bloom Filter for Fast Lookups**: Reduces unnecessary disk reads by filtering out non-matching entries.
@@ -43,7 +40,7 @@ The features and functionality are being actively developed, and there may be in
 
 ---
 
-### Coming Soon 🚀
+### Coming Soon ✨
 - **Configurable Options**: Tailor the engine to specific workloads using a flexible configuration file.
 - **Advanced Query Language**: A user-friendly query interface for managing and retrieving data.
 - **LSM Tree**: Implements a Log-Structured Merge (LSM) tree to optimize write performance and reduce read latency.
@@ -65,7 +62,7 @@ To get started with this NoSQL engine, follow the steps below to install and set
   go version
 If Go is not installed, you can download and install it from the official [Go website](https://go.dev/dl/).
 
-### Steps to Install
+### 📦 Steps to Install
 
 1. Clone the repository
   ```bash
@@ -87,16 +84,15 @@ If Go is not installed, you can download and install it from the official [Go we
  Currently, there is no main entry point for the NoSQL engine. The project is in its early stages, and only unit tests are available for now. You can run the tests to validate the functionality of the engine components.
 
 ---
-
- # How it works
  
- ## Architecture Overview
+ ## Architecture Overview 
  
  The search engine is built around a modular architecture that separates concerns and ensures scalability. It consists of:
  
-   **Write Path** : For ingesting data efficiently and preparing it for search.      
+  ### **Write Path** 🗂️: 
+  For ingesting data efficiently and preparing it for search.      
  
- ![write path](image.png)
+ ![write path](/assets/write%20path.png)
  
    - Memtable : multiple in-memory instances active during program operations. Configuration allowing memtable size change. When an instance of memtable fills with data, data gets flushed to the disk. Apearance of the second instance allowing the engine to operate smoothly while the data is being written to the disk.
        - SSparser performing the memtable instance management as well as transforming memtable data to a valid sstable format. Calclating data chunk offsets and forming index summary tables.
@@ -104,17 +100,18 @@ If Go is not installed, you can download and install it from the official [Go we
    - SStable : data structured on the disk. Configuration allowing 2 types of aproach. Single file sstable or a multiple file sstable. Consisting of metadata, filter, merkle tree, summary, index and data parts. 
        - Block manager allows smooth data writes/reads in fixed size blocks (possible configuration). Using file writers and readers on top of an instance of block manager we allow for block manager component to be recycled through the project while eliminating tight coupling, and reducing reads of non-important data.
  
-   **Read Path**: For executing search queries and returning results.
+  ### **Read Path** 📖: 
+  For executing search queries and returning results.
  
-   ![read path](image-1.png)
+   ![read path](/assets/read%20path.png)
  
    **Cache Layer**: For optimizing frequently accessed data. 
-       - Block cache: comopnent relying on LRU algorithm. Consisting of a doubly linked list storing actual block data and a hash map storing key-value pairs [block id , file name] : data_pointer. This aproach allows our system to have constant cache access time.
+       - Block cache: component relying on LRU algorithm. Consisting of a doubly linked list storing actual block data and a hash map storing key-value pairs [block id , file name] : data_pointer. This aproach allows our system to have constant cache access time.
    **Bloom Filter**: For optimizing data lookups. If the key is not present in the bloom filter, we continue the lookup in other sstable files. Loaded into memory.
- 
+  
    **SStable Summary**: For optimizing data lookups. In the isection of sorted keys we choose ranges that are present in the summary. Loaded into memory. 
  
-   
+ ---
  
  ## Data Storage
  
@@ -123,7 +120,7 @@ If Go is not installed, you can download and install it from the official [Go we
  ### Write-Ahead Log (WAL): Ensures durability by recording operations before applying them.
  - **WAL** resembles the staple of stability in the system. By using WAL we can track the trace of our system operations running even when the system expiriences an unexpected crash.
  
- ![wal structure](image-2.png)
+ ![wal structure](/assets/wal.png)
  
  ### Memtable: Temporarily holds records in memory for fast writes and retrievals.
  
@@ -131,9 +128,19 @@ If Go is not installed, you can download and install it from the official [Go we
    - Current version does not support lsm tree optimization (organization into levels).
  
  
- ![index](image-3.png)
+ ![index](/assets/index.png)
  
  Indexing is at the core of the search engine's functionality.
+ ...
+
+ ---
+
+ ## Configuration
+
+🔧[Not in use] To configure the NoSQL engine, modify the config.json file located in the src/config directory of the project. The configuration file allows you to tailor the engine to specific use cases and workloads.
  
- 
- This structure is clear and matches the requested template. It provides a thorough explanation of the search engine's workflow and underlying mechanisms. Let me know if additional details or modifications are needed!
+ ---
+
+ ## License
+
+ This project is licensed under the MIT License. You are free to use, modify, and distribute this software under the terms of the MIT License.
