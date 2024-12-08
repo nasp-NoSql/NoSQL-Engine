@@ -3,7 +3,7 @@ package tests
 import (
 	"fmt"
 	"nosqlEngine/src/models/key_value"
-	"nosqlEngine/src/service"
+	"nosqlEngine/src/service/ss_parser"
 	"testing"
 )
 
@@ -18,7 +18,7 @@ func (fw *FileWriterMock) WriteSS(data ...[]byte) bool {
 
 func TestAddMemtable(t *testing.T) {
 	fileWriterMock := &FileWriterMock{}
-	ssParser := service.NewSSParser1File(fileWriterMock)
+	ssParser := ss_parser.NewSSParser1File(fileWriterMock)
 
 	keyValues := make([]key_value.KeyValue, 0, 3)
 	for i := 0; i < 3; i++ {
