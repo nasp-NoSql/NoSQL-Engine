@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"nosqlEngine/src/models/bloom_filter"
 	"nosqlEngine/src/models/key_value"
-	"nosqlEngine/src/models/merkle_tree"
 )
 
 const BLOCK_SIZE = 30
@@ -53,7 +52,7 @@ func (ssParser *SSParser1File) parseNextMem() {
 	key_value.SortByKeys(&data)
 
 	_ = bloom_filter.GetBloomFilterArray(key_value.GetKeys(data))
-	_ = merkle_tree.GetMerkleTree(data)
+	//_ = merkle_tree.GetMerkleTree(data)
 
 	dataBytes, keys, keyOffsets := serializeDataGetOffsets(data)
 	indexBytes, indexOffsets := serializeIndexGetOffsets(keys, keyOffsets, int64(len(dataBytes)))

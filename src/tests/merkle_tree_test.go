@@ -1,4 +1,4 @@
-package merkle_tree
+package tests
 
 import (
 	"fmt"
