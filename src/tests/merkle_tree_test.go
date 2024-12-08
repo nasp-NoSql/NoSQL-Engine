@@ -2,19 +2,20 @@ package merkle_tree
 
 import (
 	"fmt"
+	"nosqlEngine/src/models/merkle_tree"
 	"testing"
 )
 
 func TestCreateLeafNodes(t *testing.T) {
 	data := []string{"value1", "value2", "value3", "value4"}
 
-	leafNodes := CreateLeafNodes(data)
+	leafNodes := merkle_tree.CreateLeafNodes(data)
 	if len(leafNodes) != len(data) {
 		t.Errorf("Expected %d leaf nodes, got %d", len(data), len(leafNodes))
 	}
 
 	for i, node := range leafNodes {
-		expectedHash := CalculateHash(data[i])
+		expectedHash := merkle_tree.CalculateHash(data[i])
 		if node.Hash != expectedHash {
 			t.Errorf("Expected hash %s, got %s", expectedHash, node.Hash)
 		}
@@ -23,15 +24,15 @@ func TestCreateLeafNodes(t *testing.T) {
 
 func TestSerializeDeserializeMerkleTree(t *testing.T) {
 	data := []string{"value1", "value2", "value3", "value4"}
-	leafNodes := CreateLeafNodes(data)
-	root := BuildMerkleTree(leafNodes)
+	leafNodes := merkle_tree.CreateLeafNodes(data)
+	root := merkle_tree.BuildMerkleTree(leafNodes)
 
-	serialized, err := SerializeMerkleTree(root)
+	serialized, err := merkle_tree.SerializeMerkleTree(root)
 	if err != nil {
 		t.Fatalf("Error during serialization: %v", err)
 	}
 
-	deserializedRoot, err := DeserializeMerkleTree(serialized)
+	deserializedRoot, err := merkle_tree.DeserializeMerkleTree(serialized)
 	if err != nil {
 		t.Fatalf("Error during deserialization: %v", err)
 	}
@@ -43,7 +44,7 @@ func TestSerializeDeserializeMerkleTree(t *testing.T) {
 
 func BenchmarkCreateLeafNodes(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		CreateLeafNodes([]string{"value1", "value2", "value3", "value4"})
+		merkle_tree.CreateLeafNodes([]string{"value1", "value2", "value3", "value4"})
 	}
 }
 
@@ -56,6 +57,6 @@ func BenchmarkCreateLeafNodesWithLargeData(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		CreateLeafNodes(data)
+		merkle_tree.CreateLeafNodes(data)
 	}
 }

@@ -1,3 +1,52 @@
+# NoSQL Engine
+
+## 🚧 Work in Progress 🚧  
+**This project is currently a work in progress (WIP).**  
+The features and functionality are being actively developed, and there may be incomplete or experimental components. Please check back regularly for updates.  
+
+### Current Status:  
+- Core functionality implemented (SSTable storage, indexing).  
+- Ongoing work on query optimization and error handling.  
+- Some features may not yet be fully functional or stable.
+
+## Table of Contents  
+- [Introduction](#introduction)  
+- [Features](#features)  
+- [Installation](#installation)  
+- [Usage](#usage)  
+- [How It Works](#how-it-works)  
+  - [Architecture Overview](#architecture-overview)  
+  - [Data Storage](#data-storage)  
+  - [Indexing](#indexing)  
+  - [Querying](#querying)  
+  - [Consistency](#consistency)  
+- [Configuration](#configuration)  
+- [Contributing](#contributing)  
+- [License](#license)  
+
+---
+
+## Introduction  
+**NoSQL Engine** is a lightweight, efficient, and customizable NoSQL database engine written in Go. Designed for speed and flexibility, it is ideal for scenarios requiring immutable data storage and fast lookups.
+
+---
+
+## Features  
+- **SSTable-Based Storage**: Efficient immutable storage for data.  
+- **Bloom Filter for Fast Lookups**: Reduces unnecessary disk reads.  
+- **Custom Indexing**: Supports fast key-value retrieval.  
+- **Configurable Options**: Tailor the engine to specific workloads using a configuration file.  
+- **Simple Console Application**: Manage your database with an easy-to-use CLI.  
+
+---
+
+## Installation  
+1. Clone this repository:  
+   ```bash  
+   git clone <repository_url>  
+2. Navigate to project directory:
+   ```bash  
+   git clone <repository_url>  
 
 
 ## Table of Contents  
