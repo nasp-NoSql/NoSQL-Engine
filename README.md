@@ -15,9 +15,9 @@ The features and functionality are being actively developed, and there may be in
 - [Installation](#installation)  
 - [Usage](#usage) 
 - [Architecture Overview](#architecture-overview)  
+  - [Write path](#write-path)  
+  - [Read path](#read-path)  
   - [Data Storage](#data-storage)  
-  - [Indexing](#indexing)  
-  - [Querying](#querying)  
 - [Configuration](#configuration)  
 - [License](#license)  
 
@@ -94,11 +94,31 @@ If Go is not installed, you can download and install it from the official [Go we
  
  ![write path](/assets/write%20path.png)
  
-   - Memtable : multiple in-memory instances active during program operations. Configuration allowing memtable size change. When an instance of memtable fills with data, data gets flushed to the disk. Apearance of the second instance allowing the engine to operate smoothly while the data is being written to the disk.
-       - SSparser performing the memtable instance management as well as transforming memtable data to a valid sstable format. Calclating data chunk offsets and forming index summary tables.
- 
-   - SStable : data structured on the disk. Configuration allowing 2 types of aproach. Single file sstable or a multiple file sstable. Consisting of metadata, filter, merkle tree, summary, index and data parts. 
-       - Block manager allows smooth data writes/reads in fixed size blocks (possible configuration). Using file writers and readers on top of an instance of block manager we allow for block manager component to be recycled through the project while eliminating tight coupling, and reducing reads of non-important data.
+- **Memtable**:  
+- A dynamic, in-memory data structure where multiple instances can remain active during program execution. The memtable size is configurable, allowing for adjustment based on workload and resource constraints.  
+  - When one memtable instance reaches its capacity, its data is flushed to disk to maintain performance.  
+  - A second memtable instance seamlessly takes over while the first is being written to disk, ensuring continuous operation without interruptions.  
+  - The SSParser manages memtable instances and transforms their data into the SSTable format. It calculates data chunk offsets and generates index and summary tables to organize the flushed data efficiently.  
+
+- **SSTable**:    
+*The SSTable is a disk-based, structured data format used for storage and retrieval. It supports two configurable approaches:*    
+  - A single-file SSTable that encapsulates all components, or  
+  - A multi-file SSTable where each component, such as metadata or indexes, is stored separately.  
+
+ - *The SSTable is composed of key parts including:*      
+
+    - **Metadata**: Provides contextual details about the SSTable.  
+
+    - **Filter**: Helps determine the likelihood of a key's existence in the table.  
+
+    - **Merkle Tree**: Ensures data consistency and integrity.  
+
+    - **Summary and Index**: Facilitate efficient key lookups.  
+
+    - **Data**: Stores the actual key-value pairs.  
+
+- **Block Manager**:  
+    This component manages smooth data writes and reads using fixed-size blocks (configurable for specific needs). It works alongside file writers and readers, enabling reusable and modular block management across the project. This design reduces tight coupling and minimizes unnecessary reads of non-essential data.
  
   ### **Read Path** 📖: 
   For executing search queries and returning results.
@@ -106,10 +126,15 @@ If Go is not installed, you can download and install it from the official [Go we
    ![read path](/assets/read%20path.png)
  
    **Cache Layer**: For optimizing frequently accessed data. 
-       - Block cache: component relying on LRU algorithm. Consisting of a doubly linked list storing actual block data and a hash map storing key-value pairs [block id , file name] : data_pointer. This aproach allows our system to have constant cache access time.
+       - Block cache: component relying on LRU algorithm. Consisting of a doubly linked list storing actual block data and a hash map storing key-value pairs [block id , file name] : data_pointer. This aproach allows our system to have constant cache access time.  
+
    **Bloom Filter**: For optimizing data lookups. If the key is not present in the bloom filter, we continue the lookup in other sstable files. Loaded into memory.
   
    **SStable Summary**: For optimizing data lookups. In the isection of sorted keys we choose ranges that are present in the summary. Loaded into memory. 
+
+   **SStable Index**: After getting the valid key offset range, Index leads us to value of the actual data chunk offset.
+
+   **SStable Data**: Resembles the last detionation in our read path, stores actual data bytes.
  
  ---
  
@@ -130,8 +155,26 @@ If Go is not installed, you can download and install it from the official [Go we
  
  ![index](/assets/index.png)
  
- Indexing is at the core of the search engine's functionality.
- ...
+### Important Information about SSTable Structure during Read Operations
+
+#### During read operations in an SSTable (Sorted Strings Table), specific components are loaded into memory to optimize access and reduce disk I/O. Here's how the process works:
+
+* In-Memory Components:  
+        **Summary**: This contains a condensed mapping of keys to offsets in the Index file. It allows the system to quickly locate the approximate position of a key in the Index, significantly reducing the number of disk seeks required.  
+        **Metadata**: This includes important information about the SSTable, such as its generation, compression type, and other configuration details. Metadata helps in managing and interpreting the SSTable.  
+        **Filter (e.g., Bloom Filter)**: This probabilistic data structure quickly determines if a key might exist in the SSTable, allowing the system to avoid unnecessary disk lookups for keys that are definitely not present.  
+        **Merkle Tree**: This data structure is used for efficient validation and consistency checks, particularly in distributed systems. It ensures data integrity and helps in identifying inconsistencies.  
+
+* On-Disk Components:  
+        **Index**: The Index maps every key to its corresponding location in the Data file. It is accessed based on offsets calculated from the Summary.  
+        **Data**: This is where the actual key-value pairs are stored. Once the Index provides the exact location, the Data file is read to retrieve the required information.  
+
+* Access Process:  
+        *The read operation begins with the Filter, which quickly determines if the requested key might exist in the SSTable.*  
+        *If the Filter indicates a possible match, the Summary is consulted to locate the approximate position of the key in the Index.*  
+        *The exact offset of the key in the Data file is retrieved from the Index, allowing direct access to the required data without scanning the entire file.*  
+        **This multi-layered structure minimizes the number of disk accesses, significantly enhancing read performance.**
+
 
  ---
 
