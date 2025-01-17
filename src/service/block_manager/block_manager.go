@@ -18,10 +18,22 @@ type blockManager struct {
 	blockCache *LRUCache
 }
 
+type block struct {
+	data []byte
+	id   int
+}
+
 func NewManager(size int, cacheCapacity int) *blockManager {
 	return &blockManager{
 		BLOCKSIZE:  size,
 		blockCache: NewLRUCache(cacheCapacity),
+	}
+}
+
+func NewBlock(id int, data []byte) *block {
+	return &block{
+		id:   id,
+		data: data,
 	}
 }
 
@@ -32,46 +44,22 @@ func generateFileName() string {
 func (bm *blockManager) WriteBlocks(data []byte, filename string) bool {
 	numberOfBlocks := int(math.Ceil(float64(len(data)) / float64(bm.BLOCKSIZE)))
 
-	// for i := 0; i < numberOfBlocks; i++ {
-	// 	offset := i * bm.BLOCKSIZE
-	// 	if i*bm.BLOCKSIZE+bm.BLOCKSIZE > len(data) {
-	// 		bm.writeBlockToDisk(data[i*bm.BLOCKSIZE:], filename, offset)
-	// 		return true
-	// 	}
-	// 	blockData := data[i*bm.BLOCKSIZE : (i+1)*bm.BLOCKSIZE]
-	// 	written := bm.writeBlockToDisk(blockData, filename, offset)
-	// 	if !written {
-	// 		fmt.Println("Error writing block to disk")
-	// 		return false
-	// 	}
-	// 	bm.blockCache.Put(filename, i, blockData)
-	// }
-
-	// we will do write blocks in reverse order
-	k := 0
-	j := 0
-	blockData := make([]byte, bm.BLOCKSIZE)
-	for i := numberOfBlocks - 1; i >= 0; i-- {
-		offset := j * bm.BLOCKSIZE
-		if k == 0 {
-			blockData = data[i*bm.BLOCKSIZE:]
-			k++
-		} else {
-			blockData = data[i*bm.BLOCKSIZE : (i+1)*bm.BLOCKSIZE]
+	for i := 0; i < numberOfBlocks; i++ {
+		offset := i * bm.BLOCKSIZE
+		if i*bm.BLOCKSIZE+bm.BLOCKSIZE > len(data) {
+			bm.writeBlockToDisk(data[i*bm.BLOCKSIZE:], filename, offset)
+			return true
 		}
+		blockData := data[i*bm.BLOCKSIZE : (i+1)*bm.BLOCKSIZE]
 		written := bm.writeBlockToDisk(blockData, filename, offset)
 		if !written {
 			fmt.Println("Error writing block to disk")
 			return false
-		} else {
-			fmt.Println("Block written successfully")
-			fmt.Println("Block data: ", blockData)
 		}
-		j++
 		bm.blockCache.Put(filename, i, blockData)
 	}
-
 	return true
+
 }
 
 func (bm *blockManager) writeBlockToDisk(data []byte, filename string, offset int) bool {
@@ -108,8 +96,8 @@ func (bm *blockManager) ReadBlock(blockId int, filename string) ([]byte, error) 
 	}
 
 	data, err = bm.ReadFromDisk(blockId, filename)
-
 	if err != nil {
+		fmt.Println("Error reading block from disk")
 		return nil, err
 	}
 
@@ -124,11 +112,40 @@ func (bm *blockManager) ReadFromDisk(blockId int, filename string) ([]byte, erro
 		return nil, err
 	}
 	defer f.Close()
-	blockData := make([]byte, bm.BLOCKSIZE)
-	_, err = f.ReadAt(blockData, int64(blockId*bm.BLOCKSIZE))
+	startOffset := int64(-1 * (blockId*bm.BLOCKSIZE + bm.BLOCKSIZE))
+
+	if startOffset < 0 {
+		f.Seek(0, 0)
+	} else {
+		_, err = f.Seek(startOffset, 2)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if err != nil {
 		return nil, err
 	}
+	fileInfo, err := f.Stat()
+	size := fileInfo.Size()
+
+	if size > int64(bm.BLOCKSIZE) {
+
+		size = int64(bm.BLOCKSIZE)
+	}
+
+	blockData := make([]byte, size)
+
+	_, err = f.Read(blockData)
+
+	if err != nil {
+		fmt.Println("Error reading block data")
+		return nil, err
+	}
+
+	fmt.Println("Block read from disk")
+	fmt.Println(blockData)
 	bm.blockCache.Put(filename, blockId, blockData)
 	return blockData, nil
 }
