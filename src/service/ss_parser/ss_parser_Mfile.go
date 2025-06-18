@@ -31,7 +31,7 @@ func (ssParser *SSParserMfile) parseNextMem() {
 		1. Data section:8 bytes for key size, key, 8 bytes for size of value, value
 		2. Index section: 8 bytes for size of key, key, 8 bytes for offset in data section
 		3. Summary section: 8 bytes for size of key, key, 8 bytes for offset in index section
-		4. MetaData section: 8 bytes summary size, 8 bytes summary start offset,  8 bytes merkle tree size, merkle tree 8 bytes bloom filter size, bloom filter, 8 byters filter size
+		4. MetaData section: 8 bytes for size of summary, 8 bytes for offset of summary in SS file, 8 bytes for size of merkle tree, 8 bytes for size of bloom filter, bloom filter, 8 bytes for number of keys in data section
 		
 	*/
 	if ssParser.isParsing {
