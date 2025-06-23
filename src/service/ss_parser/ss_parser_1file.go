@@ -57,7 +57,7 @@ func (ssParser *SSParser1File) parseNextMem() {
 	summaryBytes := getSummaryBytes(key_value.GetKeys(data), indexOffsets)
 	summaryOffset := int64(len(dataBytes) + len(indexBytes))
 	// currently holder 0 bytes for merkle tree and bloom filter
-	metaDataBytes := getMetaDataBytes(int64(len(summaryBytes)), summaryOffset, make([]byte, 0), make([]byte, 0), int64(len(data))) 
+	metaDataBytes := getMetaDataBytes(int64(len(summaryBytes)), summaryOffset, make([]byte, 0), make([]byte, 0))
 
 	bytes := make([]byte, 0, len(dataBytes)+len(indexBytes)+len(summaryBytes)+len(metaDataBytes))
 	bytes = append(bytes, dataBytes...)
