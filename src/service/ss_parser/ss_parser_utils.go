@@ -71,7 +71,7 @@ func getSummaryBytes(keys []string, offsets []int64) []byte {
 	}
 	return dataBytes
 }
-func getMetaDataBytes(summarySize int64, summaryStartOffset int64, bloomFilterBytes []byte, merkleTreeBytes []byte, dataSize int64) []byte {
+func getMetaDataBytes(summarySize int64, summaryStartOffset int64, bloomFilterBytes []byte, merkleTreeBytes []byte) []byte {
 	dataBytes := make([]byte, 0)
 	dataBytes = append(dataBytes, intToBytes(int64(len(bloomFilterBytes)))...)
 	dataBytes = append(dataBytes, bloomFilterBytes...)
@@ -79,7 +79,7 @@ func getMetaDataBytes(summarySize int64, summaryStartOffset int64, bloomFilterBy
 	dataBytes = append(dataBytes, merkleTreeBytes...)
 	dataBytes = append(dataBytes, intToBytes(summarySize)...)
 	dataBytes = append(dataBytes, intToBytes(summaryStartOffset)...)
-	dataBytes = append(dataBytes, intToBytes(dataSize)...)
+	dataBytes = append(dataBytes, intToBytes(int64(len(dataBytes)))...)
 	return dataBytes
 }
 func intToBytes(n int64) []byte {

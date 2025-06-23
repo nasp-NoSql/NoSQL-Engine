@@ -36,7 +36,7 @@ func (ssParser *SSParser1File) parseNextMem() {
 		1. Data section:8 bytes for key size, key, 8 bytes for size of value, value
 		2. Index section: 8 bytes for size of key, key, 8 bytes for offset in data section
 		3. Summary section: 8 bytes for size of key, key, 8 bytes for offset in index section
-		4. MetaData section: 8 bytes for size of summary, 8 bytes for offset of summary in SS file, 8 bytes for size of merkle tree, 8 bytes for size of bloom filter, bloom filter, 8 bytes for number of keys in data section
+		4. MetaData section: 8 bytes bloom filter size, bloom filter, 8 bytes merkle tree, merkle tree, 8 bytes summary size, 8 bytes summary offset, 8 bytes size of metadata
 
 	*/
 	if ssParser.isParsing {
@@ -56,7 +56,12 @@ func (ssParser *SSParser1File) parseNextMem() {
 	indexBytes, indexOffsets := serializeIndexGetOffsets(keys, keyOffsets, int64(len(dataBytes)))
 	summaryBytes := getSummaryBytes(key_value.GetKeys(data), indexOffsets)
 	summaryOffset := int64(len(dataBytes) + len(indexBytes))
+<<<<<<< Updated upstream
 
+=======
+	// currently holder 0 bytes for merkle tree and bloom filter
+	metaDataBytes := getMetaDataBytes(int64(len(summaryBytes)), summaryOffset, make([]byte, 0), make([]byte, 0))
+>>>>>>> Stashed changes
 
 	bytes := make([]byte, 0, len(dataBytes)+len(indexBytes)+len(summaryBytes)+len(metaDataBytes))
 	bytes = append(bytes, dataBytes...)
