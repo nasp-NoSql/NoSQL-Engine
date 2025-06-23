@@ -31,7 +31,7 @@ The features and functionality are being actively developed, and there may be in
 ## Features 
 
 ### Available Features 🚀
-- **SSTable-Based Storage**: Efficient immutable storage for data.
+- **SSTable-Based Storage**: Efficient immutable storage for data
 - **Write-Ahead Logging (WAL)**: Protects data integrity by logging changes before committing them to disk.
 - **Bloom Filter for Fast Lookups**: Reduces unnecessary disk reads by filtering out non-matching entries.
 - **Merkle Tree for SSTables**: Ensures data integrity by detecting and resolving data corruption.
