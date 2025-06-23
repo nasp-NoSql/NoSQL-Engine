@@ -6,7 +6,6 @@ import (
 	"nosqlEngine/src/service/file_writer"
 )
 
-
 type MemValues struct {
 	values []key_value.KeyValue // holds all memtable values that need to be written to SS
 }
@@ -56,12 +55,8 @@ func (ssParser *SSParser1File) parseNextMem() {
 	indexBytes, indexOffsets := serializeIndexGetOffsets(keys, keyOffsets, int64(len(dataBytes)))
 	summaryBytes := getSummaryBytes(key_value.GetKeys(data), indexOffsets)
 	summaryOffset := int64(len(dataBytes) + len(indexBytes))
-<<<<<<< Updated upstream
-
-=======
 	// currently holder 0 bytes for merkle tree and bloom filter
 	metaDataBytes := getMetaDataBytes(int64(len(summaryBytes)), summaryOffset, make([]byte, 0), make([]byte, 0))
->>>>>>> Stashed changes
 
 	bytes := make([]byte, 0, len(dataBytes)+len(indexBytes)+len(summaryBytes)+len(metaDataBytes))
 	bytes = append(bytes, dataBytes...)
