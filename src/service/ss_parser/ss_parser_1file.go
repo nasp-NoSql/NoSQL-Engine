@@ -6,7 +6,6 @@ import (
 	"nosqlEngine/src/service/file_writer"
 )
 
-
 type MemValues struct {
 	values []key_value.KeyValue // holds all memtable values that need to be written to SS
 }
@@ -57,7 +56,7 @@ func (ssParser *SSParser1File) parseNextMem() {
 	bytes = append(bytes, summaryBytes...)
 	bytes = append(bytes, metaDataBytes...)
 	ssParser.fileWriter.WriteSS(bytes)
-	
+
 	if len(ssParser.mems) != 0 {
 		ssParser.parseNextMem()
 	} else {

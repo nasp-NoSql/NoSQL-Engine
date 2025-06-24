@@ -48,7 +48,6 @@ func (ssParser *SSParserMfile) parseNextMem() {
 	metaDataBytes = addPaddingToBlock(metaDataBytes, len(metaDataBytes), CONFIG.BlockSize, false) 
 	ssParser.fileWriter.WriteSS(dataBytes, indexBytes, summaryBytes, metaDataBytes)
 
-
 	if len(ssParser.mems) != 0 {
 		ssParser.parseNextMem()
 	} else {

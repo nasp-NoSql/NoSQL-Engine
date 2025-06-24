@@ -35,12 +35,12 @@ func TestWriteToSS(t *testing.T) {
 }
 
 func TestRetrieveAKey(t *testing.T) {
-	bm := block_manager.NewManager(30, 5)
+	bm := block_manager.NewManager(4096, 5)
 	fileWriter1File := file_writer.NewFileWriter1File(bm)
 	ssParser := ss_parser.NewSSParser1File(fileWriter1File)
 
-	keyValues := make([]key_value.KeyValue, 0, 3)
-	for i := 0; i < 3; i++ {
+	keyValues := make([]key_value.KeyValue, 0, 80)
+	for i := 0; i < 80; i++ {
 		key := fmt.Sprintf("key%d", i+1)
 		value := fmt.Sprintf("value%d", i+1)
 		keyValues = append(keyValues, key_value.NewKeyValue(key, value))
@@ -51,7 +51,7 @@ func TestRetrieveAKey(t *testing.T) {
 	reader := file_reader.NewReader(bm)
 	retriever := service.NewSSRetriever(reader)
 
-	value, err := retriever.GetValue("key")
+	value, err := retriever.GetValue("key16", bm.BLOCKSIZE)
 	if err != nil {
 		t.Errorf("Error retrieving key: %s", err)
 	}
