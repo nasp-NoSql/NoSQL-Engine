@@ -1,18 +1,24 @@
 package config
 
 import (
+	_ "embed"
 	"encoding/json"
-	"io/ioutil"
+	"fmt"
 )
 
+//go:embed config.json
+var configData []byte
+
 type Config struct {
-	blockSize int `json:"block_size"`
+	BlockSize   int `json:"BLOCK_SIZE"`
+	SummaryStep int `json:"SUMMARY_STEP"`
 }
 
-func getConfig() Config {
-	configFile, _ := ioutil.ReadFile("nosqlEngine/src/config/config")
+func GetConfig() Config {
 	var config Config
-	json.Unmarshal(configFile, &config)
+	if err := json.Unmarshal(configData, &config); err != nil {
+		panic(fmt.Sprintf("failed to parse config file: %v", err))
+	}
 
 	return config
 }
