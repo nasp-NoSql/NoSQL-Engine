@@ -23,17 +23,6 @@ func (ssParser *SSParserMfile) AddMemtable(keyValues []key_value.KeyValue) {
 }
 
 func (ssParser *SSParserMfile) parseNextMem() {
-
-	/*
-		Checks if SS is being written, if not, then it writes the next memtable to SS to avoid collision
-
-		SSTable format:
-		1. Data section:8 bytes for key size, key, 8 bytes for size of value, value
-		2. Index section: 8 bytes for size of key, key, 8 bytes for offset in data section
-		3. Summary section: 8 bytes for size of key, key, 8 bytes for offset in index section
-		4. MetaData section: 8 bytes bloom filter size, bloom filter, 8 bytes merkle tree, merkle tree, 8 bytes summary size, 8 bytes summary offset, 8 bytes size of metadata
-
-	*/
 	if ssParser.isParsing {
 		return
 	}
@@ -44,14 +33,19 @@ func (ssParser *SSParserMfile) parseNextMem() {
 
 	key_value.SortByKeys(&data)
 
-	_ = bloom_filter.GetBloomFilterArray(key_value.GetKeys(data))
+	bloom := bloom_filter.GetBloomFilterArray(key_value.GetKeys(data))
 	//	_ = merkle_tree.GetMerkleTree(data)
 
 	dataBytes, keys, keyOffsets := serializeDataGetOffsets(data)
 	indexBytes, indexOffsets := serializeIndexGetOffsets(keys, keyOffsets, int64(0))
 	summaryBytes := getSummaryBytes(key_value.GetKeys(data), indexOffsets)
-	metaDataBytes := getMetaDataBytes(int64(len(summaryBytes)), int64(0), make([]byte, 0), make([]byte, 0))
-
+	metaDataBytes := getMetaDataBytes(int64(len(summaryBytes)), int64(0), bloom, make([]byte, 0), int64(len(data)))
+	
+	// Add padding to every section to be a multiple of BLOCK_SIZE
+	dataBytes = addPaddingToBlock(dataBytes, len(dataBytes), CONFIG.BlockSize, true)
+	indexBytes = addPaddingToBlock(indexBytes,len(indexBytes), CONFIG.BlockSize, true)
+	summaryBytes = addPaddingToBlock(summaryBytes,len(summaryBytes), CONFIG.BlockSize, true)
+	metaDataBytes = addPaddingToBlock(metaDataBytes, len(metaDataBytes), CONFIG.BlockSize, false) 
 	ssParser.fileWriter.WriteSS(dataBytes, indexBytes, summaryBytes, metaDataBytes)
 
 	if len(ssParser.mems) != 0 {

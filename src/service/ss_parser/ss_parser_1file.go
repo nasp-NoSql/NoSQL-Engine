@@ -27,17 +27,6 @@ func (ssParser *SSParser1File) AddMemtable(keyValues []key_value.KeyValue) {
 }
 
 func (ssParser *SSParser1File) parseNextMem() {
-
-	/*
-		Checks if SS is being written, if not, then it writes the next memtable to SS to avoid collision
-
-		SSTable format:
-		1. Data section:8 bytes for key size, key, 8 bytes for size of value, value
-		2. Index section: 8 bytes for size of key, key, 8 bytes for offset in data section
-		3. Summary section: 8 bytes for size of key, key, 8 bytes for offset in index section
-		4. MetaData section: 8 bytes bloom filter size, bloom filter, 8 bytes merkle tree, merkle tree, 8 bytes summary size, 8 bytes summary offset, 8 bytes size of metadata
-
-	*/
 	if ssParser.isParsing {
 		return
 	}
@@ -48,17 +37,20 @@ func (ssParser *SSParser1File) parseNextMem() {
 
 	key_value.SortByKeys(&data)
 
-	_ = bloom_filter.GetBloomFilterArray(key_value.GetKeys(data))
+	bloom := bloom_filter.GetBloomFilterArray(key_value.GetKeys(data))
 	//_ = merkle_tree.GetMerkleTree(data)
 
 	dataBytes, keys, keyOffsets := serializeDataGetOffsets(data)
 	indexBytes, indexOffsets := serializeIndexGetOffsets(keys, keyOffsets, int64(len(dataBytes)))
 	summaryBytes := getSummaryBytes(key_value.GetKeys(data), indexOffsets)
 	summaryOffset := int64(len(dataBytes) + len(indexBytes))
-	// currently holder 0 bytes for merkle tree and bloom filter
-	metaDataBytes := getMetaDataBytes(int64(len(summaryBytes)), summaryOffset, make([]byte, 0), make([]byte, 0))
-
-	bytes := make([]byte, 0, len(dataBytes)+len(indexBytes)+len(summaryBytes)+len(metaDataBytes))
+	// currently holder 0 bytes for merkle tree
+	metaDataBytes := getMetaDataBytes(int64(len(summaryBytes)), summaryOffset, bloom, make([]byte, 0), int64(len(data)))
+	currentFileSize := len(dataBytes) + len(indexBytes) + len(summaryBytes) // without metadata
+	metaDataBytes = addPaddingToBlock(metaDataBytes, currentFileSize  + len(metaDataBytes), CONFIG.BlockSize, false) // padding metadata so the file is a  multiple of BlockSize
+	currentFileSize += len(metaDataBytes)
+	
+	bytes := make([]byte, 0, currentFileSize)
 	bytes = append(bytes, dataBytes...)
 	bytes = append(bytes, indexBytes...)
 	bytes = append(bytes, summaryBytes...)
