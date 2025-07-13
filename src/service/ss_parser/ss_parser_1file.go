@@ -40,23 +40,22 @@ func (ssParser *SSParser1File) parseNextMem() {
 	bloom := bloom_filter.GetBloomFilterArray(key_value.GetKeys(data))
 	//_ = merkle_tree.GetMerkleTree(data)
 
-	dataBytes, keys, keyOffsets := serializeDataGetOffsets(data)
+	dataBytes, keys, keyOffsets := serializeDataGetOffsets(&ssParser.fileWriter, data)
 	indexBytes, indexOffsets := serializeIndexGetOffsets(keys, keyOffsets, int64(len(dataBytes)))
+	ssParser.fileWriter.WriteEntry(indexBytes, true)
 	summaryBytes := getSummaryBytes(key_value.GetKeys(data), indexOffsets)
+	ssParser.fileWriter.WriteEntry(summaryBytes, true)
 	summaryOffset := int64(len(dataBytes) + len(indexBytes))
 	// currently holder 0 bytes for merkle tree
 	metaDataBytes := getMetaDataBytes(int64(len(summaryBytes)), summaryOffset, bloom, make([]byte, 0), int64(len(data)))
-	currentFileSize := len(dataBytes) + len(indexBytes) + len(summaryBytes) // without metadata
-	metaDataBytes = addPaddingToBlock(metaDataBytes, currentFileSize  + len(metaDataBytes), CONFIG.BlockSize, false) // padding metadata so the file is a  multiple of BlockSize
-	currentFileSize += len(metaDataBytes)
-	
-	bytes := make([]byte, 0, currentFileSize)
-	bytes = append(bytes, dataBytes...)
-	bytes = append(bytes, indexBytes...)
-	bytes = append(bytes, summaryBytes...)
-	bytes = append(bytes, metaDataBytes...)
-	ssParser.fileWriter.WriteSS(bytes)
+	ssParser.fileWriter.WriteEntry(metaDataBytes, true)
 
+	// bytes := make([]byte, 0, currentFileSize)
+	// bytes = append(bytes, dataBytes...)
+	// bytes = append(bytes, indexBytes...)
+	// bytes = append(bytes, summaryBytes...)
+	// bytes = append(bytes, metaDataBytes...)
+	// ssParser.fileWriter.WriteSS(bytes)
 	if len(ssParser.mems) != 0 {
 		ssParser.parseNextMem()
 	} else {
