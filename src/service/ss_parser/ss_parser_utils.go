@@ -77,8 +77,8 @@ func getMetaDataBytes(summarySize int64, summaryStartOffset int64, bloomFilterBy
 	dataBytes = append(dataBytes, bloomFilterBytes...)
 	dataBytes = append(dataBytes, intToBytes(int64(len(bloomFilterBytes)))...)
 	sz := int64(len(dataBytes))
-	dataBytes = addPaddingToBlock(dataBytes, len(dataBytes), CONFIG.BlockSize-8, false)
 	dataBytes = append(dataBytes, intToBytes(sz)...) // Append the total size of the metadata
+	dataBytes = addPaddingToBlock(dataBytes, len(dataBytes), CONFIG.BlockSize-8, false)
 
 	return dataBytes
 }

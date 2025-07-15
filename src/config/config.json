@@ -1,4 +1,4 @@
 {
-    "BLOCK_SIZE": 4096,
+    "BLOCK_SIZE": 40,
     "SUMMARY_STEP":3
 }

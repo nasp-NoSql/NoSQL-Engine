@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-const BLOCK_SIZE = 4096 // Adjust as needed
+const BLOCK_SIZE = 40 // Adjust as needed
 
 type BlockManager struct{}
 

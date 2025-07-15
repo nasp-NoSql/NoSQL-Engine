@@ -31,7 +31,7 @@ func (r *EntryRetriever) RetrieveEntry(key string) ([]byte, error) {
 
 	mdSize := bytesToInt(metadata[len(metadata)-8:])
 	if mdSize > int64(CONFIG.BlockSize) {
-		return nil, fmt.Errorf("metadata size exceeds BLOCK_SIZE")
+		fmt.Print("metadata size exceeds BLOCK_SIZE\n")
 	}
 	numOfBlocks := mdSize / int64(CONFIG.BlockSize)
 	if mdSize%int64(CONFIG.BlockSize) != 0 {
@@ -52,6 +52,10 @@ func (r *EntryRetriever) RetrieveEntry(key string) ([]byte, error) {
 	}
 	cleanedData := mdBytes[:mdSize]
 
+	fmt.Println("Retrieved metadata: ", cleanedData)
+	fmt.Println("Metadata size: ", mdSize)
+	fmt.Println("Number of blocks: ", numOfBlocks)
+	return []byte{}, nil
 	bf_size := bytesToInt(cleanedData[len(cleanedData)-8:])
 	bf_size_int := int(bf_size)
 	bf_data := cleanedData[len(cleanedData)-8-bf_size_int : len(cleanedData)-8]

@@ -36,14 +36,12 @@ func (fw *FileWriter) WriteEntry(data []byte, sectionEnd bool) {
 
 	if sectionEnd {
 		if len(fw.currentBlock) > 0 {
-			fmt.Println("Flushing current block before writing new entry")
 			fw.FlushCurrentBlock()
 		}
 	}
 
 	fmt.Print("Writing entry to FileWriter: ", data, "\n")
 	if fw.IsJumbo(len(data)) {
-		fmt.Println("This is a jumbo entry, allocating multiple blocks!")
 		fw.WriteJumboData(data)
 		return
 	}
@@ -52,7 +50,6 @@ func (fw *FileWriter) WriteEntry(data []byte, sectionEnd bool) {
 		// Write current block to disk and start a new block
 		fw.FlushCurrentBlock()
 	}
-	fmt.Println("Writing data to current block")
 	fw.currentBlock = append(fw.currentBlock, data...)
 	fw.offsetInBlock += len(data)
 }
@@ -65,7 +62,6 @@ func (fw *FileWriter) IsJumbo(dataLen int) bool {
 // WriteJumboData splits and writes data that is larger than a block
 func (fw *FileWriter) WriteJumboData(data []byte) {
 	if len(fw.currentBlock) > 0 {
-		fmt.Println("Flushing current block before writing jumbo data")
 		fw.FlushCurrentBlock()
 	}
 	numBlocks := (len(data) + fw.blockSize - 1) / fw.blockSize // Calculate number of blocks needed
@@ -81,14 +77,11 @@ func (fw *FileWriter) WriteJumboData(data []byte) {
 			padding := make([]byte, fw.blockSize-len(wrData))
 			wrData = append(wrData, padding...)
 		}
-		fmt.Printf("Writing jumbo block %d with size %d bytes\n", fw.currentBlockNum, len(wrData))
 		fw.allDataWritten = append(fw.allDataWritten, wrData...)
 		err := fw.block_manager.WriteBlock(fw.location, fw.currentBlockNum, wrData)
 		if err != nil {
-			fmt.Printf("Error writing jumbo block %d: %v\n", fw.currentBlockNum, err)
 			return
 		}
-		fmt.Printf("Written %d bytes up to now to FileWriter\n", len(fw.allDataWritten))
 		fw.currentBlockNum++
 		fw.currentBlock = make([]byte, 0, fw.blockSize) // Reset current block
 		fw.offsetInBlock = 0
@@ -102,16 +95,13 @@ func (fw *FileWriter) CanWrite(dataLen int) bool {
 
 // FlushCurrentBlock writes the current block to disk and starts a new block
 func (fw *FileWriter) FlushCurrentBlock() {
-	fmt.Println("Flushing current block to disk")
 	if len(fw.currentBlock) > 0 {
 		//add padding to ensure block size
 		if len(fw.currentBlock) < fw.blockSize {
 			padding := make([]byte, fw.blockSize-len(fw.currentBlock))
 			fw.currentBlock = append(fw.currentBlock, padding...)
 		}
-		fmt.Printf("Flushing block %d with size %d bytes\n", fw.currentBlockNum, len(fw.currentBlock))
 		fw.allDataWritten = append(fw.allDataWritten, fw.currentBlock...)
-		fmt.Printf("Till now written data size: %d bytes\n", len(fw.allDataWritten))
 		fw.block_manager.WriteBlock(fw.location, fw.currentBlockNum, fw.currentBlock)
 		fw.currentBlockNum++
 		fw.currentBlock = make([]byte, 0, fw.blockSize)
