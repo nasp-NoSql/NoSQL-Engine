@@ -2,372 +2,453 @@ package service
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
-	"nosqlEngine/src/service/block_manager"
+	"nosqlEngine/src/config"
 	"nosqlEngine/src/service/file_reader"
-	"nosqlEngine/src/utils"
 )
 
-//flow : data -> index -> summary -> metadata
-
-type SSRetriever struct {
-	reader file_reader.FileReader
+type EntryRetriever struct {
+	fileReader file_reader.FileReader
 }
 
-type Metadata struct {
-	mt_content    []byte
-	summary_start int64
-	summary_size  int64
-	found_in_bf   bool
-}
-
-type BlockRetrieved struct {
-	block      []byte
-	index      int
-	block_size int
-	blockId    int
-}
-
-func NewMetadata(mt_content []byte, summary_start int64, summary_size int64, found_in_bf bool) *Metadata {
-	return &Metadata{mt_content: mt_content, summary_start: summary_start, summary_size: summary_size, found_in_bf: found_in_bf}
-}
-
-func NewBlockRetrieved(block []byte, index int, size int, id int) *BlockRetrieved {
-	return &BlockRetrieved{block: block, index: index, block_size: size, blockId: id}
-}
-
-func (b *BlockRetrieved) SetBlockData(block []byte) {
-	b.block = block
-}
-
-func (b *BlockRetrieved) SetLastId(id int) {
-
-	b.blockId = id
-}
-
-func (b *BlockRetrieved) SetIndex(index int) {
-	b.index = index
-}
-
-func NewSSRetriever(reader file_reader.FileReader) *SSRetriever {
-	return &SSRetriever{reader: reader}
-}
-
-func NewSSTableReader(bm block_manager.BlockManager) *SSRetriever {
-	return &SSRetriever{reader: file_reader.NewReader(bm)}
-}
+var CONFIG = config.GetConfig()
 
 func bytesToInt(buf []byte) int64 {
 
 	return int64(binary.BigEndian.Uint64(buf))
 }
-
-func readBloom(block *BlockRetrieved) (int64, []byte, error) {
-
-	bloom_size := bytesToInt(block.block[len(block.block)-8:])
-	block.SetBlockData(block.block[:len(block.block)-8])
-	bloom := block.block[int64(len(block.block))-bloom_size:]
-	block.SetBlockData(block.block[:int64(len(block.block))-bloom_size])
-	return bloom_size, bloom, nil
-
+func NewEntryRetriever(fileReader file_reader.FileReader) *EntryRetriever {
+	return &EntryRetriever{fileReader: fileReader}
 }
 
-func (r *SSRetriever) readMetadata(path string, block *BlockRetrieved) ([]byte, int64, []byte, int64, int64, int64, int64, error) {
-	block_id := 0
-	data, err := r.reader.ReadSS(path, block_id)
-
+func (r *EntryRetriever) RetrieveEntry(key string) ([]byte, error) {
+	r.fileReader.SetDirection(false) // Set to read from back
+	//analyze metadata
+	metadata, err := r.fileReader.ReadEntry(0)
 	if err != nil {
-		return nil, -1, nil, -1, -1, -1, -1, err
+		return nil, err
 	}
 
-	meta_size := bytesToInt(data[len(data)-8:])
-
-	block.SetBlockData(data[:len(data)-8])
-
-	bf_size, bf_content, err := readBloom(block)
-
-	if err != nil {
-		return nil, -1, nil, -1, -1, -1, -1, err
+	mdSize := bytesToInt(metadata[len(metadata)-8:])
+	if mdSize > int64(CONFIG.BlockSize) {
+		return nil, fmt.Errorf("metadata size exceeds BLOCK_SIZE")
 	}
-
-	block_size := int64(len(block.block))
-
-	meta_size = meta_size - bf_size - 8
-
-	missing_vals := meta_size - block_size
-
-	for missing_vals > 0 {
-		block_id++
-		data, err = r.reader.ReadSS(path, block_id)
-
+	numOfBlocks := mdSize / int64(CONFIG.BlockSize)
+	if mdSize%int64(CONFIG.BlockSize) != 0 {
+		numOfBlocks++
+	}
+	mdBytes := make([]byte, 0, mdSize)
+	for i := int64(0); i < numOfBlocks; i++ {
+		block, err := r.fileReader.ReadEntry(int(i))
+		mdBytes = append(mdBytes, block...)
 		if err != nil {
-			return nil, -1, nil, -1, -1, -1, -1, err
+			return nil, err
 		}
 
-		data = append(data, block.block...)
+		if len(block) == 0 {
+			continue // Skip empty blocks
+		}
 
-		block.SetBlockData(data)
+	}
+	cleanedData := mdBytes[:mdSize]
 
-		missing_vals = meta_size - int64(len(data))
+	bf_size := bytesToInt(cleanedData[len(cleanedData)-8:])
+	bf_size_int := int(bf_size)
+	bf_data := cleanedData[len(cleanedData)-8-bf_size_int : len(cleanedData)-8]
+	summary_start := bytesToInt(cleanedData[len(cleanedData)-16-bf_size_int : len(cleanedData)-8-bf_size_int])
+	summary_size := bytesToInt(cleanedData[len(cleanedData)-24-bf_size_int : len(cleanedData)-16-bf_size_int])
+	numOfItems := bytesToInt(cleanedData[len(cleanedData)-32-bf_size_int : len(cleanedData)-24-bf_size_int])
+	merkle_size := bytesToInt(cleanedData[len(cleanedData)-40-bf_size_int : len(cleanedData)-32-bf_size_int])
+	merkle_size_int := int(merkle_size)
+	merkle_data := cleanedData[len(cleanedData)-40-bf_size_int-merkle_size_int : len(cleanedData)-40-bf_size_int]
+
+	// Define intToBytes helper
+	intToBytes := func(n int64) []byte {
+		b := make([]byte, 8)
+		binary.BigEndian.PutUint64(b, uint64(n))
+		return b
 	}
 
-	block.SetLastId(block_id)
+	var data []byte
+	data = append(data, bf_data...)
+	data = append(data, intToBytes(summary_start)...)
+	data = append(data, intToBytes(summary_size)...)
+	data = append(data, intToBytes(numOfItems)...)
+	data = append(data, merkle_data...)
+	data = append(data, intToBytes(merkle_size)...)
+	data = append(data, cleanedData[:len(cleanedData)-40-bf_size_int-merkle_size_int]...)
 
-	merkle_size := bytesToInt(block.block[len(block.block)-8:])
-	block.SetBlockData(block.block[:len(block.block)-8])
-	merkle_content := block.block[int64(len(block.block))-merkle_size:]
-	block.SetBlockData(block.block[:int64(len(block.block))-merkle_size])
-
-	index_size := bytesToInt(block.block[len(block.block)-8:])
-	block.SetBlockData(block.block[:len(block.block)-8])
-
-	summary_size := bytesToInt(block.block[len(block.block)-8:])
-	block.SetBlockData(block.block[:len(block.block)-8])
-	summary_start := bytesToInt(block.block[len(block.block)-8:])
-	block.SetBlockData(block.block[:len(block.block)-8])
-
-	data_size := bytesToInt(block.block[len(block.block)-8:])
-	block.SetBlockData(block.block[:len(block.block)-8])
-
-	return bf_content, bf_size, merkle_content, index_size, summary_size, summary_start, data_size, nil
-
+	return data, nil
 }
 
-// Search the summary section for the range containing the key
-func (r *SSRetriever) searchSummary(key string, summarySize int64, block *BlockRetrieved, path string) (int64, error) {
+// import (
+// 	"encoding/binary"
+// 	"errors"
+// 	"fmt"
+// 	"nosqlEngine/src/service/block_manager"
+// 	"nosqlEngine/src/service/file_reader"
+// 	"nosqlEngine/src/utils"
+// )
 
-	missing_vals := summarySize - int64(len(block.block))
+// //flow : data -> index -> summary -> metadata
 
-	block_id := block.blockId + 1
-	for missing_vals > 0 {
+// type SSRetriever struct {
+// 	reader file_reader.FileReader
+// }
 
-		data, err := r.reader.ReadSS(path, block_id)
+// type Metadata struct {
+// 	mt_content    []byte
+// 	summary_start int64
+// 	summary_size  int64
+// 	found_in_bf   bool
+// }
 
-		if err != nil {
-			return 0, err
-		}
+// type BlockRetrieved struct {
+// 	block      []byte
+// 	index      int
+// 	block_size int
+// 	blockId    int
+// }
 
-		block.SetBlockData(append(data, block.block...))
+// func NewMetadata(mt_content []byte, summary_start int64, summary_size int64, found_in_bf bool) *Metadata {
+// 	return &Metadata{mt_content: mt_content, summary_start: summary_start, summary_size: summary_size, found_in_bf: found_in_bf}
+// }
 
-		missing_vals = summarySize - int64(len(block.block))
-		block_id++
-	}
+// func NewBlockRetrieved(block []byte, index int, size int, id int) *BlockRetrieved {
+// 	return &BlockRetrieved{block: block, index: index, block_size: size, blockId: id}
+// }
 
-	block.SetLastId(block_id)
+// func (b *BlockRetrieved) SetBlockData(block []byte) {
+// 	b.block = block
+// }
 
-	summaryBites := block.block[int64(len(block.block))-summarySize:]
+// func (b *BlockRetrieved) SetLastId(id int) {
 
-	block.SetBlockData(block.block[:int64(len(block.block))-summarySize])
+// 	b.blockId = id
+// }
 
-	current_pos := int64(0)
+// func (b *BlockRetrieved) SetIndex(index int) {
+// 	b.index = index
+// }
 
-	for current_pos < summarySize {
+// func NewSSRetriever(reader file_reader.FileReader) *SSRetriever {
+// 	return &SSRetriever{reader: reader}
+// }
 
-		key_size := bytesToInt(summaryBites[current_pos : current_pos+8])
-		current_pos += 8
-		curr_key := string(summaryBites[current_pos : current_pos+key_size])
-		current_pos += key_size
-		index_offset := bytesToInt(summaryBites[current_pos : current_pos+8])
-		current_pos += 8
+// func NewSSTableReader(bm block_manager.BlockManager) *SSRetriever {
+// 	return &SSRetriever{reader: file_reader.NewReader(bm)}
+// }
 
-		if curr_key <= key {
-			return index_offset, nil
-		}
-	}
+// func bytesToInt(buf []byte) int64 {
 
-	return 0, errors.New("key not found in summary")
+// 	return int64(binary.BigEndian.Uint64(buf))
+// }
 
-	// pos := summaryStart
+// func readBloom(block *BlockRetrieved) (int64, []byte, error) {
 
-	// currKey := ""
-	// indexOffset := summaryStart
-	// for pos < summaryStart+summarySize {
+// 	bloom_size := bytesToInt(block.block[len(block.block)-8:])
+// 	block.SetBlockData(block.block[:len(block.block)-8])
+// 	bloom := block.block[int64(len(block.block))-bloom_size:]
+// 	block.SetBlockData(block.block[:int64(len(block.block))-bloom_size])
+// 	return bloom_size, bloom, nil
 
-	// 	keySize := binary.BigEndian.Uint64(data[pos : pos+8])
-	// 	pos += 8
-	// 	currKey = string(data[pos : pos+int64(keySize)])
-	// 	pos += int64(keySize)
-	// 	indexOffset = int64(binary.BigEndian.Uint64(data[pos : pos+8]))
-	// 	pos += 8
+// }
 
-	// 	if currKey >= key {
-	// 		return indexOffset, nil
+// func (r *SSRetriever) readMetadata(path string, block *BlockRetrieved) ([]byte, int64, []byte, int64, int64, int64, int64, error) {
+// 	block_id := 0
+// 	data, err := r.reader.ReadSS(path, block_id)
 
-	// 	}
-	// }
+// 	if err != nil {
+// 		return nil, -1, nil, -1, -1, -1, -1, err
+// 	}
 
-}
+// 	meta_size := bytesToInt(data[len(data)-8:])
 
-// Search the index section for the exact key and retrieve its data offset
-// performing a sequential search in the index section
-func (r *SSRetriever) searchIndex(key string, indexOffset int64, block *BlockRetrieved, summaryOffset int64, path string) (int64, error) {
+// 	block.SetBlockData(data[:len(data)-8])
 
-	toIndex := summaryOffset - indexOffset
+// 	bf_size, bf_content, err := readBloom(block)
 
-	missing_vals := toIndex - int64(len(block.block))
-	block_id := block.blockId + 1
-	for missing_vals > 0 {
+// 	if err != nil {
+// 		return nil, -1, nil, -1, -1, -1, -1, err
+// 	}
 
-		data, err := r.reader.ReadSS(path, block_id)
+// 	block_size := int64(len(block.block))
 
-		if err != nil {
-			return 0, err
+// 	meta_size = meta_size - bf_size - 8
 
-		}
+// 	missing_vals := meta_size - block_size
 
-		block.SetBlockData(append(data, block.block...))
+// 	for missing_vals > 0 {
+// 		block_id++
+// 		data, err = r.reader.ReadSS(path, block_id)
 
-		missing_vals = toIndex - int64(len(block.block))
-		block_id++
-	}
+// 		if err != nil {
+// 			return nil, -1, nil, -1, -1, -1, -1, err
+// 		}
 
-	block.SetLastId(block_id)
+// 		data = append(data, block.block...)
 
-	indexBytes := block.block[int64(len(block.block))-toIndex:]
+// 		block.SetBlockData(data)
 
-	block.SetBlockData(block.block[:int64(len(block.block))-toIndex])
+// 		missing_vals = meta_size - int64(len(data))
+// 	}
 
-	current_pos := int64(0)
+// 	block.SetLastId(block_id)
 
-	for current_pos < toIndex {
+// 	merkle_size := bytesToInt(block.block[len(block.block)-8:])
+// 	block.SetBlockData(block.block[:len(block.block)-8])
+// 	merkle_content := block.block[int64(len(block.block))-merkle_size:]
+// 	block.SetBlockData(block.block[:int64(len(block.block))-merkle_size])
 
-		key_size := bytesToInt(indexBytes[current_pos : current_pos+8])
-		current_pos += 8
-		curr_key := string(indexBytes[current_pos : current_pos+key_size])
-		current_pos += key_size
-		data_offset := bytesToInt(indexBytes[current_pos : current_pos+8])
-		current_pos += 8
+// 	index_size := bytesToInt(block.block[len(block.block)-8:])
+// 	block.SetBlockData(block.block[:len(block.block)-8])
 
-		if curr_key == key {
-			return data_offset, nil
-		}
+// 	summary_size := bytesToInt(block.block[len(block.block)-8:])
+// 	block.SetBlockData(block.block[:len(block.block)-8])
+// 	summary_start := bytesToInt(block.block[len(block.block)-8:])
+// 	block.SetBlockData(block.block[:len(block.block)-8])
 
-	}
-	// pos := indexStart
-	// for pos < int64(len(data)) {
-	// 	keySize := binary.BigEndian.Uint64(data[pos : pos+8]) // getting the key size, 8 bytes
-	// 	pos += 8
-	// 	currKey := string(data[pos : pos+int64(keySize)]) // geting the key value, key size bytes
-	// 	pos += int64(keySize)
-	// 	dataOffset := binary.BigEndian.Uint64(data[pos : pos+8]) // getting the data offset, 8 bytes
-	// 	pos += 8
+// 	data_size := bytesToInt(block.block[len(block.block)-8:])
+// 	block.SetBlockData(block.block[:len(block.block)-8])
 
-	// 	if currKey == key {
-	// 		return int64(dataOffset), nil
-	// 	}
-	// }
-	return 0, errors.New("key not found in index")
-}
+// 	return bf_content, bf_size, merkle_content, index_size, summary_size, summary_start, data_size, nil
 
-func (r *SSRetriever) searchData(dataOffset int64, indexOffset int64, block *BlockRetrieved, path string, wantedKey string) (string, error) {
+// }
 
-	// block data is until the index offset of the wanted key
+// // Search the summary section for the range containing the key
+// func (r *SSRetriever) searchSummary(key string, summarySize int64, block *BlockRetrieved, path string) (int64, error) {
 
-	toData := indexOffset - dataOffset
+// 	missing_vals := summarySize - int64(len(block.block))
 
-	missing_vals := toData - int64(len(block.block))
-	block_id := block.blockId + 1
-	for missing_vals > 0 {
+// 	block_id := block.blockId + 1
+// 	for missing_vals > 0 {
 
-		data, err := r.reader.ReadSS(path, block_id)
+// 		data, err := r.reader.ReadSS(path, block_id)
 
-		if err != nil {
+// 		if err != nil {
+// 			return 0, err
+// 		}
 
-			return "", err
+// 		block.SetBlockData(append(data, block.block...))
 
-		}
+// 		missing_vals = summarySize - int64(len(block.block))
+// 		block_id++
+// 	}
 
-		block.SetBlockData(append(data, block.block...))
+// 	block.SetLastId(block_id)
 
-		missing_vals = toData - int64(len(block.block))
-		block_id++
-	}
+// 	summaryBites := block.block[int64(len(block.block))-summarySize:]
 
-	block.SetLastId(block_id)
+// 	block.SetBlockData(block.block[:int64(len(block.block))-summarySize])
 
-	dataBytes := block.block[int64(len(block.block))-toData:]
+// 	current_pos := int64(0)
 
-	block.SetBlockData(block.block[:int64(len(block.block))-toData])
+// 	for current_pos < summarySize {
 
-	current_pos := int64(0)
-	key_size := bytesToInt(dataBytes[current_pos : current_pos+8])
-	current_pos += 8
-	key := string(dataBytes[current_pos : current_pos+key_size])
-	current_pos += key_size
+// 		key_size := bytesToInt(summaryBites[current_pos : current_pos+8])
+// 		current_pos += 8
+// 		curr_key := string(summaryBites[current_pos : current_pos+key_size])
+// 		current_pos += key_size
+// 		index_offset := bytesToInt(summaryBites[current_pos : current_pos+8])
+// 		current_pos += 8
 
-	if key == wantedKey {
-		value_size := bytesToInt(dataBytes[current_pos : current_pos+8])
-		current_pos += 8
-		value := string(dataBytes[current_pos : current_pos+value_size])
-		return value, nil
+// 		if curr_key <= key {
+// 			return index_offset, nil
+// 		}
+// 	}
 
-	}
+// 	return 0, errors.New("key not found in summary")
 
-	return "", errors.New("key not found in data")
-}
+// 	// pos := summaryStart
 
-// Retrieve the value from the data section using the offset
-func (r *SSRetriever) readValue(dataOffset int64, data []byte) (string, error) {
-	if dataOffset >= int64(len(data)) {
-		return "", errors.New("invalid data offset")
-	}
-	valueSize := binary.BigEndian.Uint64(data[dataOffset : dataOffset+8]) // getting the value size, 8 bytes
-	dataOffset += 8
-	value := string(data[dataOffset : dataOffset+int64(valueSize)]) // getting the value, value size bytes
-	return value, nil
-}
+// 	// currKey := ""
+// 	// indexOffset := summaryStart
+// 	// for pos < summaryStart+summarySize {
 
-func (r *SSRetriever) GetValue(key string, bSize int) (string, error) {
-	paths := utils.GetPaths()
-	block := NewBlockRetrieved(nil, 0, bSize, 0)
-	for _, path := range paths {
+// 	// 	keySize := binary.BigEndian.Uint64(data[pos : pos+8])
+// 	// 	pos += 8
+// 	// 	currKey = string(data[pos : pos+int64(keySize)])
+// 	// 	pos += int64(keySize)
+// 	// 	indexOffset = int64(binary.BigEndian.Uint64(data[pos : pos+8]))
+// 	// 	pos += 8
 
-		//read metadata
-		bf_size, bf_content, merkle_content, index_size, summary_size, summary_start, data_size, err := r.readMetadata(path, block)
+// 	// 	if currKey >= key {
+// 	// 		return indexOffset, nil
 
-		if err != nil {
-			return "", err
-		}
+// 	// 	}
+// 	// }
 
-		fmt.Println("Bloom filter size: ", bf_size)
-		fmt.Println("Bloom filter content: ", bf_content)
-		fmt.Println("Merkle tree content: ", merkle_content)
-		fmt.Println("Index size: ", index_size)
-		fmt.Println("Summary size: ", summary_size)
-		fmt.Println("Summary start: ", summary_start)
-		fmt.Println("Data size: ", data_size)
+// }
 
-		//read summary
+// // Search the index section for the exact key and retrieve its data offset
+// // performing a sequential search in the index section
+// func (r *SSRetriever) searchIndex(key string, indexOffset int64, block *BlockRetrieved, summaryOffset int64, path string) (int64, error) {
 
-		index_offset, err := r.searchSummary(key, summary_size, block, path)
+// 	toIndex := summaryOffset - indexOffset
 
-		if err != nil {
+// 	missing_vals := toIndex - int64(len(block.block))
+// 	block_id := block.blockId + 1
+// 	for missing_vals > 0 {
 
-			return "", err
-		}
+// 		data, err := r.reader.ReadSS(path, block_id)
 
-		//read index
+// 		if err != nil {
+// 			return 0, err
 
-		data_offset, err := r.searchIndex(key, index_offset, block, summary_start, path)
+// 		}
 
-		if err != nil {
+// 		block.SetBlockData(append(data, block.block...))
 
-			return "", err
+// 		missing_vals = toIndex - int64(len(block.block))
+// 		block_id++
+// 	}
 
-		}
+// 	block.SetLastId(block_id)
 
-		//read data
-		value, err := r.searchData(data_offset, index_offset, block, path, key)
+// 	indexBytes := block.block[int64(len(block.block))-toIndex:]
 
-		if err != nil {
+// 	block.SetBlockData(block.block[:int64(len(block.block))-toIndex])
 
-			return "", err
+// 	current_pos := int64(0)
 
-		}
-		return value, nil
-	}
+// 	for current_pos < toIndex {
 
-	return "", nil
+// 		key_size := bytesToInt(indexBytes[current_pos : current_pos+8])
+// 		current_pos += 8
+// 		curr_key := string(indexBytes[current_pos : current_pos+key_size])
+// 		current_pos += key_size
+// 		data_offset := bytesToInt(indexBytes[current_pos : current_pos+8])
+// 		current_pos += 8
 
-}
+// 		if curr_key == key {
+// 			return data_offset, nil
+// 		}
+
+// 	}
+// 	// pos := indexStart
+// 	// for pos < int64(len(data)) {
+// 	// 	keySize := binary.BigEndian.Uint64(data[pos : pos+8]) // getting the key size, 8 bytes
+// 	// 	pos += 8
+// 	// 	currKey := string(data[pos : pos+int64(keySize)]) // geting the key value, key size bytes
+// 	// 	pos += int64(keySize)
+// 	// 	dataOffset := binary.BigEndian.Uint64(data[pos : pos+8]) // getting the data offset, 8 bytes
+// 	// 	pos += 8
+
+// 	// 	if currKey == key {
+// 	// 		return int64(dataOffset), nil
+// 	// 	}
+// 	// }
+// 	return 0, errors.New("key not found in index")
+// }
+
+// func (r *SSRetriever) searchData(dataOffset int64, indexOffset int64, block *BlockRetrieved, path string, wantedKey string) (string, error) {
+
+// 	// block data is until the index offset of the wanted key
+
+// 	toData := indexOffset - dataOffset
+
+// 	missing_vals := toData - int64(len(block.block))
+// 	block_id := block.blockId + 1
+// 	for missing_vals > 0 {
+
+// 		data, err := r.reader.ReadSS(path, block_id)
+
+// 		if err != nil {
+
+// 			return "", err
+
+// 		}
+
+// 		block.SetBlockData(append(data, block.block...))
+
+// 		missing_vals = toData - int64(len(block.block))
+// 		block_id++
+// 	}
+
+// 	block.SetLastId(block_id)
+
+// 	dataBytes := block.block[int64(len(block.block))-toData:]
+
+// 	block.SetBlockData(block.block[:int64(len(block.block))-toData])
+
+// 	current_pos := int64(0)
+// 	key_size := bytesToInt(dataBytes[current_pos : current_pos+8])
+// 	current_pos += 8
+// 	key := string(dataBytes[current_pos : current_pos+key_size])
+// 	current_pos += key_size
+
+// 	if key == wantedKey {
+// 		value_size := bytesToInt(dataBytes[current_pos : current_pos+8])
+// 		current_pos += 8
+// 		value := string(dataBytes[current_pos : current_pos+value_size])
+// 		return value, nil
+
+// 	}
+
+// 	return "", errors.New("key not found in data")
+// }
+
+// // Retrieve the value from the data section using the offset
+// func (r *SSRetriever) readValue(dataOffset int64, data []byte) (string, error) {
+// 	if dataOffset >= int64(len(data)) {
+// 		return "", errors.New("invalid data offset")
+// 	}
+// 	valueSize := binary.BigEndian.Uint64(data[dataOffset : dataOffset+8]) // getting the value size, 8 bytes
+// 	dataOffset += 8
+// 	value := string(data[dataOffset : dataOffset+int64(valueSize)]) // getting the value, value size bytes
+// 	return value, nil
+// }
+
+// func (r *SSRetriever) GetValue(key string, bSize int) (string, error) {
+// 	paths := utils.GetPaths()
+// 	block := NewBlockRetrieved(nil, 0, bSize, 0)
+// 	for _, path := range paths {
+
+// 		//read metadata
+// 		bf_size, bf_content, merkle_content, index_size, summary_size, summary_start, data_size, err := r.readMetadata(path, block)
+
+// 		if err != nil {
+// 			return "", err
+// 		}
+
+// 		fmt.Println("Bloom filter size: ", bf_size)
+// 		fmt.Println("Bloom filter content: ", bf_content)
+// 		fmt.Println("Merkle tree content: ", merkle_content)
+// 		fmt.Println("Index size: ", index_size)
+// 		fmt.Println("Summary size: ", summary_size)
+// 		fmt.Println("Summary start: ", summary_start)
+// 		fmt.Println("Data size: ", data_size)
+
+// 		//read summary
+
+// 		index_offset, err := r.searchSummary(key, summary_size, block, path)
+
+// 		if err != nil {
+
+// 			return "", err
+// 		}
+
+// 		//read index
+
+// 		data_offset, err := r.searchIndex(key, index_offset, block, summary_start, path)
+
+// 		if err != nil {
+
+// 			return "", err
+
+// 		}
+
+// 		//read data
+// 		value, err := r.searchData(data_offset, index_offset, block, path, key)
+
+// 		if err != nil {
+
+// 			return "", err
+
+// 		}
+// 		return value, nil
+// 	}
+
+// 	return "", nil
+
+// }
