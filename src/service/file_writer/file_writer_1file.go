@@ -6,6 +6,24 @@ import (
 
 	"github.com/google/uuid"
 )
+type FileWriter struct{
+	location string
+} // Mock for file writer, can be replaced with actual implementation
+func NewFileWriter(location string) *FileWriter {
+	return &FileWriter{location: location}
+}
+func (fw *FileWriter) Write(data []byte, endSection bool) int {
+	return 2 // index of block it writes it in
+}
+func (fw *FileWriter) Close()  bool{
+	return true
+}
+func (fw *FileWriter) NewFile(location string) {
+	fw.Close() // Close the current file before creating a new one
+	fw.location = location
+}
+
+
 
 type FileWriter1File struct {
 	block_manager block_manager.BlockManager

@@ -11,14 +11,14 @@ type FileWriterMock struct {
 	rawBytes []byte
 }
 
-func (fw *FileWriterMock) WriteSS(data ...[]byte) bool {
+func (fw *FileWriterMock) Write(data ...[]byte) bool {
 	fw.rawBytes = data[0]
 	return true
 }
 
 func TestAddMemtable(t *testing.T) {
 	fileWriterMock := &FileWriterMock{}
-	ssParser := ss_parser.NewSSParser1File(fileWriterMock)
+	ssParser := ss_parser.NewSSParser(fileWriterMock)
 
 	keyValues := make([]key_value.KeyValue, 0, 3)
 	for i := 0; i < 3; i++ {
