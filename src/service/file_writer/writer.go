@@ -32,7 +32,7 @@ func NewFileWriter(bm block_manager.BlockManager, blockSize int) *FileWriter {
 	}
 }
 
-func (fw *FileWriter) WriteEntry(data []byte, sectionEnd bool) {
+func (fw *FileWriter) Write(data []byte, sectionEnd bool) {
 
 	if sectionEnd {
 		if len(fw.currentBlock) > 0 {

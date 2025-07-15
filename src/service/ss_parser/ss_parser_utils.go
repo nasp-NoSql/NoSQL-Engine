@@ -15,7 +15,7 @@ func SerializeDataGetOffsets(fw *file_writer.FileWriter, keyValues []key_value.K
 	currBlockIndex := -1
 	for i := 0; i < len(keyValues); i++ {
 		value := append(SizeAndValueToBytes(keyValues[i].GetKey()), SizeAndValueToBytes(keyValues[i].GetValue())...)
-		blockIndex := fileWriter.Write(value, false)
+		blockIndex := fw.Write(value, false)
 		if currBlockIndex != blockIndex {
 			currBlockIndex = blockIndex
 			keys = append(keys, keyValues[i].GetKey())
@@ -25,28 +25,28 @@ func SerializeDataGetOffsets(fw *file_writer.FileWriter, keyValues []key_value.K
 	return keys, offsets
 }
 
-func SerializeIndexGetOffsets(keys []string, keyOffsets []int, fileWriter *file_writer.FileWriter) []int {
+func SerializeIndexGetOffsets(keys []string, keyOffsets []int, fw *file_writer.FileWriter) []int {
 	blockIndex := []int{}
 	for i := 0; i < len(keys); i++ {
 		value := append(SizeAndValueToBytes(keys[i]), IntToBytes(int64(keyOffsets[i]))...)
-		currBlock := fileWriter.Write(value, false)
+		currBlock := fw.Write(value, false)
 		blockIndex = append(blockIndex, currBlock)
 	}
 	return blockIndex
 }
-func SerializeSummary(keys []string, offsets []int, fileWriter *file_writer.FileWriter) {
+func SerializeSummary(keys []string, offsets []int, fw *file_writer.FileWriter) {
 
 	for i := 0; i < len(keys); i = i + CONFIG.SummaryStep {
 		value := append(SizeAndValueToBytes(keys[i]), IntToBytes(int64(offsets[i]))...)
-		fileWriter.Write(value, false)
+		fw.Write(value, false)
 	}
 }
-func SerializeMetaData(summaryStartOffset int, bloomFilterBytes []byte, merkleTreeBytes []byte, numOfItems int, fileWriter *file_writer.FileWriter) {
-	fileWriter.Write(IntToBytes(int64(len(bloomFilterBytes))), false)
-	fileWriter.Write(bloomFilterBytes, false)
-	fileWriter.Write(IntToBytes(int64(summaryStartOffset)), false)
-	fileWriter.Write(IntToBytes((int64(numOfItems))), false)
-	fileWriter.Write(merkleTreeBytes, true)
+func SerializeMetaData(summaryStartOffset int, bloomFilterBytes []byte, merkleTreeBytes []byte, numOfItems int, fw *file_writer.FileWriter) {
+	fw.Write(IntToBytes(int64(len(bloomFilterBytes))), false)
+	fw.Write(bloomFilterBytes, false)
+	fw.Write(IntToBytes(int64(summaryStartOffset)), false)
+	fw.Write(IntToBytes((int64(numOfItems))), false)
+	fw.Write(merkleTreeBytes, true)
 }
 func IntToBytes(n int64) []byte {
 	buf := make([]byte, 8) // 8 bytes for int64
