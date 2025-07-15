@@ -1,8 +1,4 @@
 # Ignore Visual Studio Code files
 .vscode/
 *.code-workspace
-<<<<<<< Updated upstream
-.data/
-=======
 ./data/
->>>>>>> Stashed changes

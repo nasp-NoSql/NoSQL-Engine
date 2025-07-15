@@ -9,8 +9,7 @@ import (
 
 var CONFIG = config.GetConfig()
 
-
-func SerializeDataGetOffsets(keyValues []key_value.KeyValue, fileWriter *file_writer.FileWriter) ([]string, []int) {
+func SerializeDataGetOffsets(fw *file_writer.FileWriter, keyValues []key_value.KeyValue) ([]string, []int) {
 	keys := []string{keyValues[0].GetKey()}
 	offsets := []int{}
 	currBlockIndex := -1
@@ -26,13 +25,13 @@ func SerializeDataGetOffsets(keyValues []key_value.KeyValue, fileWriter *file_wr
 	return keys, offsets
 }
 
-func SerializeIndexGetOffsets(keys []string, keyOffsets []int, fileWriter *file_writer.FileWriter) ([]int) {
+func SerializeIndexGetOffsets(keys []string, keyOffsets []int, fileWriter *file_writer.FileWriter) []int {
 	blockIndex := []int{}
 	for i := 0; i < len(keys); i++ {
 		value := append(SizeAndValueToBytes(keys[i]), IntToBytes(int64(keyOffsets[i]))...)
-		currBlock := fileWriter.Write(value,false)
+		currBlock := fileWriter.Write(value, false)
 		blockIndex = append(blockIndex, currBlock)
-		}
+	}
 	return blockIndex
 }
 func SerializeSummary(keys []string, offsets []int, fileWriter *file_writer.FileWriter) {
@@ -42,8 +41,8 @@ func SerializeSummary(keys []string, offsets []int, fileWriter *file_writer.File
 		fileWriter.Write(value, false)
 	}
 }
-func SerializeMetaData(summaryStartOffset int, bloomFilterBytes []byte, merkleTreeBytes []byte, numOfItems int, fileWriter *file_writer.FileWriter){
-	fileWriter.Write(IntToBytes(int64(len(bloomFilterBytes))),false) 
+func SerializeMetaData(summaryStartOffset int, bloomFilterBytes []byte, merkleTreeBytes []byte, numOfItems int, fileWriter *file_writer.FileWriter) {
+	fileWriter.Write(IntToBytes(int64(len(bloomFilterBytes))), false)
 	fileWriter.Write(bloomFilterBytes, false)
 	fileWriter.Write(IntToBytes(int64(summaryStartOffset)), false)
 	fileWriter.Write(IntToBytes((int64(numOfItems))), false)
