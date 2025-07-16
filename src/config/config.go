@@ -10,8 +10,8 @@ import (
 var configData []byte
 
 type Config struct {
-	BlockSize   int `json:"BLOCK_SIZE"`
-	SummaryStep int `json:"SUMMARY_STEP"`
+	BlockSize   int    `json:"BLOCK_SIZE"`
+	SummaryStep int    `json:"SUMMARY_STEP"`
 	Tombstone   string `json:"TOMBSTONE"`
 }
 

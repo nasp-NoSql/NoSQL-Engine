@@ -11,6 +11,16 @@ type EntryRetriever struct {
 	fileReader file_reader.FileReader
 }
 
+type Metadata struct {
+	bf_size       int64
+	bf_data       []byte
+	summary_start int64
+	summary_size  int64
+	numOfItems    int64
+	merkle_size   int64
+	merkle_data   []byte
+}
+
 var CONFIG = config.GetConfig()
 
 func bytesToInt(buf []byte) int64 {
@@ -21,18 +31,20 @@ func NewEntryRetriever(fileReader file_reader.FileReader) *EntryRetriever {
 	return &EntryRetriever{fileReader: fileReader}
 }
 
-func (r *EntryRetriever) RetrieveEntry(key string) ([]byte, error) {
+func (r *EntryRetriever) RetrieveEntry(key string) (*Metadata, error) {
 	r.fileReader.SetDirection(false) // Set to read from back
 	//analyze metadata
 	metadata, err := r.fileReader.ReadEntry(0)
 	if err != nil {
+		fmt.Printf("Error reading metadata: %v\n", err)
 		return nil, err
 	}
 
-	mdSize := bytesToInt(metadata[len(metadata)-8:])
+	mdSize := bytesToInt(metadata[:8])
 	if mdSize > int64(CONFIG.BlockSize) {
-		return nil, fmt.Errorf("metadata size exceeds BLOCK_SIZE")
+		fmt.Print("metadata size exceeds BLOCK_SIZE")
 	}
+	fmt.Printf("Metadata size: %d\n", mdSize)
 	numOfBlocks := mdSize / int64(CONFIG.BlockSize)
 	if mdSize%int64(CONFIG.BlockSize) != 0 {
 		numOfBlocks++
@@ -51,7 +63,7 @@ func (r *EntryRetriever) RetrieveEntry(key string) ([]byte, error) {
 
 	}
 	cleanedData := mdBytes[:mdSize]
-
+	fmt.Printf("Cleaned metadata size: %d\n", len(cleanedData))
 	bf_size := bytesToInt(cleanedData[len(cleanedData)-8:])
 	bf_size_int := int(bf_size)
 	bf_data := cleanedData[len(cleanedData)-8-bf_size_int : len(cleanedData)-8]
@@ -62,23 +74,27 @@ func (r *EntryRetriever) RetrieveEntry(key string) ([]byte, error) {
 	merkle_size_int := int(merkle_size)
 	merkle_data := cleanedData[len(cleanedData)-40-bf_size_int-merkle_size_int : len(cleanedData)-40-bf_size_int]
 
-	// Define intToBytes helper
-	intToBytes := func(n int64) []byte {
-		b := make([]byte, 8)
-		binary.BigEndian.PutUint64(b, uint64(n))
-		return b
+	mt := &Metadata{
+		bf_size:       bf_size,
+		bf_data:       bf_data,
+		summary_start: summary_start,
+		summary_size:  summary_size,
+		numOfItems:    numOfItems,
+		merkle_size:   merkle_size,
+		merkle_data:   merkle_data,
+	}
+	fmt.Printf("Bloom filter size: %d\n", bf_size)
+	fmt.Printf("Bloom filter data: %v\n", bf_data)
+	fmt.Printf("Summary start: %d\n", summary_start)
+	fmt.Printf("Summary size: %d\n", summary_size)
+	fmt.Printf("Number of items: %d\n", numOfItems)
+	fmt.Printf("Merkle size: %d\n", merkle_size)
+	fmt.Printf("Merkle data: %v\n", merkle_data)
+	if len(mt.bf_data) == 0 {
+		fmt.Printf("Bloom filter is empty\n")
 	}
 
-	var data []byte
-	data = append(data, bf_data...)
-	data = append(data, intToBytes(summary_start)...)
-	data = append(data, intToBytes(summary_size)...)
-	data = append(data, intToBytes(numOfItems)...)
-	data = append(data, merkle_data...)
-	data = append(data, intToBytes(merkle_size)...)
-	data = append(data, cleanedData[:len(cleanedData)-40-bf_size_int-merkle_size_int]...)
-
-	return data, nil
+	return mt, nil
 }
 
 // import (

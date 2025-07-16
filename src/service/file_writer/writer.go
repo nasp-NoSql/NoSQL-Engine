@@ -32,29 +32,27 @@ func NewFileWriter(bm block_manager.BlockManager, blockSize int) *FileWriter {
 	}
 }
 
-func (fw *FileWriter) WriteEntry(data []byte, sectionEnd bool) {
-
+func (fw *FileWriter) Write(data []byte, sectionEnd bool) int {
 	if sectionEnd {
 		if len(fw.currentBlock) > 0 {
-			fmt.Println("Flushing current block before writing new entry")
 			fw.FlushCurrentBlock()
 		}
 	}
 
-	fmt.Print("Writing entry to FileWriter: ", data, "\n")
 	if fw.IsJumbo(len(data)) {
 		fmt.Println("This is a jumbo entry, allocating multiple blocks!")
 		fw.WriteJumboData(data)
-		return
+		return fw.currentBlockNum
 	}
 
 	if !fw.CanWrite(len(data)) {
 		// Write current block to disk and start a new block
 		fw.FlushCurrentBlock()
 	}
-	fmt.Println("Writing data to current block")
 	fw.currentBlock = append(fw.currentBlock, data...)
 	fw.offsetInBlock += len(data)
+
+	return fw.currentBlockNum
 }
 
 // IsJumbo returns true if the data is larger than a single block
@@ -65,7 +63,6 @@ func (fw *FileWriter) IsJumbo(dataLen int) bool {
 // WriteJumboData splits and writes data that is larger than a block
 func (fw *FileWriter) WriteJumboData(data []byte) {
 	if len(fw.currentBlock) > 0 {
-		fmt.Println("Flushing current block before writing jumbo data")
 		fw.FlushCurrentBlock()
 	}
 	numBlocks := (len(data) + fw.blockSize - 1) / fw.blockSize // Calculate number of blocks needed
@@ -88,7 +85,6 @@ func (fw *FileWriter) WriteJumboData(data []byte) {
 			fmt.Printf("Error writing jumbo block %d: %v\n", fw.currentBlockNum, err)
 			return
 		}
-		fmt.Printf("Written %d bytes up to now to FileWriter\n", len(fw.allDataWritten))
 		fw.currentBlockNum++
 		fw.currentBlock = make([]byte, 0, fw.blockSize) // Reset current block
 		fw.offsetInBlock = 0
@@ -102,7 +98,6 @@ func (fw *FileWriter) CanWrite(dataLen int) bool {
 
 // FlushCurrentBlock writes the current block to disk and starts a new block
 func (fw *FileWriter) FlushCurrentBlock() {
-	fmt.Println("Flushing current block to disk")
 	if len(fw.currentBlock) > 0 {
 		//add padding to ensure block size
 		if len(fw.currentBlock) < fw.blockSize {
@@ -111,7 +106,6 @@ func (fw *FileWriter) FlushCurrentBlock() {
 		}
 		fmt.Printf("Flushing block %d with size %d bytes\n", fw.currentBlockNum, len(fw.currentBlock))
 		fw.allDataWritten = append(fw.allDataWritten, fw.currentBlock...)
-		fmt.Printf("Till now written data size: %d bytes\n", len(fw.allDataWritten))
 		fw.block_manager.WriteBlock(fw.location, fw.currentBlockNum, fw.currentBlock)
 		fw.currentBlockNum++
 		fw.currentBlock = make([]byte, 0, fw.blockSize)
@@ -125,4 +119,8 @@ func (fw *FileWriter) GetAllDataWritten() []byte {
 
 func (fw *FileWriter) GetLocation() string {
 	return fw.location
+}
+
+func (fw *FileWriter) GetCurrentBlockNum() int {
+	return fw.currentBlockNum
 }

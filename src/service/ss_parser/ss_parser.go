@@ -6,7 +6,6 @@ import (
 	"nosqlEngine/src/service/file_writer"
 )
 
-
 type MemValues struct {
 	values []key_value.KeyValue // holds all memtable values that need to be written to SS
 }
@@ -14,10 +13,10 @@ type MemValues struct {
 type SSParserImpl struct {
 	mems       []MemValues
 	isParsing  bool // flag to check if SS is being written
-	fileWriter *file_writer.FileWriter
+	fileWriter file_writer.FileWriterInterface
 }
 
-func NewSSParser(fileWriter *file_writer.FileWriter) *SSParserImpl {
+func NewSSParser(fileWriter file_writer.FileWriterInterface) *SSParserImpl {
 	return &SSParserImpl{mems: make([]MemValues, 0), isParsing: false, fileWriter: fileWriter}
 }
 
@@ -40,23 +39,21 @@ func (ssParser *SSParserImpl) parseNextMem() {
 
 	bloom := bloom_filter.GetBloomFilterArray(key_value.GetKeys(data))
 	//_ = merkle_tree.GetMerkleTree(data)
-	
-	keys, keyOffsets := SerializeDataGetOffsets(data, ssParser.fileWriter)
+
+	keys, keyOffsets := SerializeDataGetOffsets(ssParser.fileWriter, data)
 	ssParser.fileWriter.Write(nil, true) // Write end of section marker
 
 	indexOffsets := SerializeIndexGetOffsets(keys, keyOffsets, ssParser.fileWriter)
-	ssParser.fileWriter.Write(nil, true) 
+	ssParser.fileWriter.Write(nil, true)
 
 	SerializeSummary(keys, indexOffsets, ssParser.fileWriter)
 	ssParser.fileWriter.Write(nil, true)
 
 	SerializeMetaData(ssParser.fileWriter.Write(nil, true), bloom, make([]byte, 0), len(data), ssParser.fileWriter)
+	ssParser.fileWriter.Write(nil, true)
 	if len(ssParser.mems) != 0 {
 		ssParser.parseNextMem()
 	} else {
 		ssParser.isParsing = false
 	}
 }
-
-
-

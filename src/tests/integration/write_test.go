@@ -3,6 +3,7 @@ package integration
 import (
 	"encoding/binary"
 	"fmt"
+	"nosqlEngine/src/config"
 	"nosqlEngine/src/models/key_value"
 	r "nosqlEngine/src/service"
 	b "nosqlEngine/src/service/block_manager"
@@ -11,6 +12,8 @@ import (
 	"nosqlEngine/src/service/ss_parser"
 	"testing"
 )
+
+var CONFIG = config.GetConfig()
 
 func bytesToInt(buf []byte) int64 {
 
@@ -21,7 +24,7 @@ func TestWritePathIntegration(t *testing.T) {
 	bm := b.NewBlockManager()
 	blockSize := b.BLOCK_SIZE
 	fileWriter := fw.NewFileWriter(*bm, blockSize)
-	ssParser := ss_parser.NewSSParser1File(*fileWriter)
+	ssParser := ss_parser.NewSSParser(fileWriter)
 
 	// Create a set of key-value pairs
 	keyValues := make([]key_value.KeyValue, 0, 10)
@@ -57,9 +60,9 @@ func TestWritePathIntegration(t *testing.T) {
 
 func TestWriteRead(t *testing.T) {
 	bm := b.NewBlockManager()
-	blockSize := b.BLOCK_SIZE
+	blockSize := CONFIG.BlockSize
 	fileWriter := fw.NewFileWriter(*bm, blockSize)
-	ssParser := ss_parser.NewSSParser1File(*fileWriter)
+	ssParser := ss_parser.NewSSParser(fileWriter)
 
 	// Create a set of key-value pairs
 	keyValues := make([]key_value.KeyValue, 0, 10)
@@ -77,26 +80,20 @@ func TestWriteRead(t *testing.T) {
 	retriever := r.NewEntryRetriever(*reader)
 
 	retrievedData, err := retriever.RetrieveEntry("key1")
+	fmt.Printf("Retrieved data: %v\n", retrievedData)
 
-	//this is only metadata
-
+	/*retrieved data is of this tyep type Metadata struct {
+		bf_size       int64
+		bf_data       []byte
+		summary_start int64
+		summary_size  int64
+		numOfItems    int64
+		merkle_size   int64
+		merkle_data   []byte
+	}
+	*/
 	if err != nil {
 		t.Fatalf("Failed to retrieve entry: %v", err)
-	}
-
-	//in tis format 	data = append(data, bf_data...)
-	// data = append(data, intToBytes(summary_start)...)
-	// data = append(data, intToBytes(summary_size)...)
-	// data = append(data, intToBytes(numOfItems)...)
-	// data = append(data, merkle_data...)
-	// data = append(data, intToBytes(merkle_size)...)
-	// data = append(data, cleanedData[:len(cleanedData)-40-bf_size_int-merkle_size_int]...)
-
-	if len(retrievedData) == 0 {
-		t.Errorf("Retrieved data is empty")
-	}
-	for i := 0; i < len(retrievedData); i++ {
-		fmt.Printf("Retrieved data[%d]: %d\n", i, retrievedData[i])
 	}
 
 }
