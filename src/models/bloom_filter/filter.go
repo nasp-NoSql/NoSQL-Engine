@@ -19,10 +19,12 @@ func (filter *BloomFilter) calculateParams(expectedElements int, falsePositiveRa
 	filter.m = int32(m)
 }
 
-func (filter *BloomFilter) Initialize(expectedElements int, falsePositiveRate float64) {
+func Initialize(expectedElements int, falsePositiveRate float64) *BloomFilter {
+	filter := &BloomFilter{}
 	filter.calculateParams(expectedElements, falsePositiveRate)
 	filter.array = make([]byte, filter.m)
 	filter.hashes = CreateHashFunctions(uint32(filter.k))
+	return filter
 }
 
 func (filter *BloomFilter) Add(s string) {
@@ -41,6 +43,10 @@ func (filter *BloomFilter) AddMultiple(s []string) []byte {
 			filter.array[index] = 1
 		}
 	}
+	return filter.array
+}
+
+func (filter *BloomFilter) GetArray() []byte {
 	return filter.array
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"nosqlEngine/src/service/file_writer"
 	"os"
 	"path/filepath"
 	"time"
@@ -28,17 +29,18 @@ type WALEntry struct {
 //	wal.Delete("data/wal/wal-20250625.log")
 type WAL struct {
 	file   *os.File
-	buffer [][]byte // changed from []string to [][]byte
-	size   int      // buffer pool size
+	buffer [][]byte                // changed from []string to [][]byte
+	size   int                     // buffer pool size
+	writer *file_writer.FileWriter // add FileWriter for block writing
 }
 
 // NewWAL creates or opens a WAL file for appending, with a buffer pool of given size
-func NewWAL(path string, bufferSize int) (*WAL, error) {
+func NewWAL(path string, bufferSize int, writer *file_writer.FileWriter) (*WAL, error) {
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return nil, err
 	}
-	return &WAL{file: f, buffer: make([][]byte, 0, bufferSize), size: bufferSize}, nil
+	return &WAL{file: f, buffer: make([][]byte, 0, bufferSize), size: bufferSize, writer: writer}, nil
 }
 
 // encodeWALEntry encodes a WALEntry into the binary WAL format
@@ -122,8 +124,12 @@ func (w *WAL) Flush() error {
 		return nil
 	}
 	for _, entry := range w.buffer {
-		if _, err := w.file.Write(entry); err != nil {
-			return err
+		if w.writer != nil {
+			w.writer.Write(entry, false)
+		} else {
+			if _, err := w.file.Write(entry); err != nil {
+				return err
+			}
 		}
 	}
 	w.buffer = w.buffer[:0]
@@ -181,10 +187,44 @@ func Delete(path string) error {
 }
 
 // Helper to generate a rotated WAL filename with timestamp
-var defaultWALName = "data/wal/wal.log"
 
 func RotatedWALName() string {
 	return fmt.Sprintf("data/wal/wal-%s.log", time.Now().Format("20060102-150405"))
+}
+
+// Helper to read and parse a single WAL entry from the file
+func readWALEntry(r io.Reader) (*WALEntry, uint32, []byte, error) {
+	head := make([]byte, 4+16+1+8+8) // CRC + Timestamp + Tombstone + KeySize + ValueSize
+	_, err := io.ReadFull(r, head)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	crc := binary.LittleEndian.Uint32(head[0:4])
+	ts := int64(binary.LittleEndian.Uint64(head[4:12]))
+	tombstone := head[20]
+	keySize := binary.LittleEndian.Uint64(head[21:29])
+	valueSize := binary.LittleEndian.Uint64(head[29:37])
+	key := make([]byte, keySize)
+	if _, err := io.ReadFull(r, key); err != nil {
+		return nil, 0, nil, err
+	}
+	value := make([]byte, valueSize)
+	if _, err := io.ReadFull(r, value); err != nil {
+		return nil, 0, nil, err
+	}
+	payload := append(head[4:], key...)
+	payload = append(payload, value...)
+	op := "PUT"
+	if tombstone == 1 {
+		op = "DELETE"
+	}
+	entry := &WALEntry{
+		Operation: op,
+		Key:       string(key),
+		Value:     string(value),
+		Timestamp: ts,
+	}
+	return entry, crc, payload, nil
 }
 
 // Replay reads the WAL file and returns all entries (for recovery)
@@ -197,43 +237,18 @@ func Replay(path string) ([]WALEntry, error) {
 
 	var entries []WALEntry
 	for {
-		head := make([]byte, 4+16+1+8+8) // CRC + Timestamp + Tombstone + KeySize + ValueSize
-		_, err := io.ReadFull(f, head)
+		entry, crc, payload, err := readWALEntry(f)
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
 			return nil, err
 		}
-		crc := binary.LittleEndian.Uint32(head[0:4])
-		ts := int64(binary.LittleEndian.Uint64(head[4:12]))
-		tombstone := head[20]
-		keySize := binary.LittleEndian.Uint64(head[21:29])
-		valueSize := binary.LittleEndian.Uint64(head[29:37])
-		key := make([]byte, keySize)
-		if _, err := io.ReadFull(f, key); err != nil {
-			return nil, err
-		}
-		value := make([]byte, valueSize)
-		if _, err := io.ReadFull(f, value); err != nil {
-			return nil, err
-		}
 		// Validate CRC
-		payload := append(head[4:], key...)
-		payload = append(payload, value...)
 		if crc32.ChecksumIEEE(payload) != crc {
 			return nil, fmt.Errorf("WAL entry CRC mismatch")
 		}
-		op := "PUT"
-		if tombstone == 1 {
-			op = "DELETE"
-		}
-		entries = append(entries, WALEntry{
-			Operation: op,
-			Key:       string(key),
-			Value:     string(value),
-			Timestamp: ts,
-		})
+		entries = append(entries, *entry)
 	}
 	return entries, nil
 }
