@@ -6,7 +6,7 @@ import (
 )
 
 type Node struct {
-	Left  *Node	
+	Left  *Node
 	Right *Node
 	Hash  string
 }
@@ -55,6 +55,11 @@ func BuildMerkleTree(nodes []*Node) *Node {
 	}
 
 	return BuildMerkleTree(parentNodes)
+}
+
+func GetMerkleTree(data []string) string {
+	leafNodes := CreateLeafNodes(data)
+	return BuildMerkleTree(leafNodes).Hash
 }
 
 // data = sstable.parse() tako nešto

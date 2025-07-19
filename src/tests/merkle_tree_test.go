@@ -49,7 +49,7 @@ func BenchmarkCreateLeafNodes(b *testing.B) {
 }
 
 func BenchmarkCreateLeafNodesWithLargeData(b *testing.B) {
-	data := make([]string, 100000000)
+	data := make([]string, 1000000)
 	for i := 0; i < len(data); i++ {
 		data[i] = fmt.Sprintf("value%d", i)
 	}

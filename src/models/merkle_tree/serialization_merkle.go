@@ -2,32 +2,40 @@ package merkle_tree
 
 import (
 	"bytes"
-	"encoding/gob"
+	"encoding/binary"
 	"fmt"
+	"io"
 )
 
 func SerializeMerkleTree(root *Node) ([]byte, error) {
 	var buf bytes.Buffer
-	encoder := gob.NewEncoder(&buf)
-	err := EncodeNode(root, encoder)
+	err := encodeNode(root, &buf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize Merkle tree: %v", err)
 	}
 	return buf.Bytes(), nil
 }
 
-func EncodeNode(node *Node, encoder *gob.Encoder) error {
+func encodeNode(node *Node, w io.Writer) error {
 	if node == nil {
-		return encoder.Encode("")
+		// Nil node: write 0 as length
+		return binary.Write(w, binary.LittleEndian, uint32(0))
 	}
 
-	err := encoder.Encode(node.Hash)
-	if err != nil {
+	hashBytes := []byte(node.Hash)
+	length := uint32(len(hashBytes))
+
+	// Write hash length + hash content
+	if err := binary.Write(w, binary.LittleEndian, length); err != nil {
 		return err
 	}
-	err = EncodeNode(node.Left, encoder)
-	if err != nil {
+	if _, err := w.Write(hashBytes); err != nil {
 		return err
 	}
-	return EncodeNode(node.Right, encoder)
+
+	// Recursively write left and right
+	if err := encodeNode(node.Left, w); err != nil {
+		return err
+	}
+	return encodeNode(node.Right, w)
 }
