@@ -11,13 +11,13 @@ import (
 var CONFIG = config.GetConfig()
 
 func SerializeDataGetOffsets(fw file_writer.FileWriterInterface, keyValues []key_value.KeyValue) ([]string, []int) {
+	fmt.Print("Serializing data...\n")
 	keys := []string{}
 	offsets := []int{}
 	currBlockIndex := -1
 	for i := 0; i < len(keyValues); i++ {
 		value := append(SizeAndValueToBytes(keyValues[i].GetKey()), SizeAndValueToBytes(keyValues[i].GetValue())...)
-		blockIndex := fw.Write(value, false)
-		fmt.Print("Writing on the index: ", i, " with block index: ", blockIndex, "\n")
+		blockIndex := fw.Write(value, false, nil)
 		if currBlockIndex != blockIndex {
 			currBlockIndex = blockIndex
 			keys = append(keys, keyValues[i].GetKey())
@@ -28,47 +28,44 @@ func SerializeDataGetOffsets(fw file_writer.FileWriterInterface, keyValues []key
 }
 
 func SerializeIndexGetOffsets(keys []string, keyOffsets []int, fw file_writer.FileWriterInterface) []int {
-	fmt.Print("Serializing index\n")
-	fmt.Print("Number of keys: ", len(keys), "\n")
-	fmt.Print("Number of key offsets: ", len(keyOffsets), "\n")
-	for i := 0; i < len(keys); i++ {
-		fmt.Print("Key: ", keys[i], "\n")
-	}
+	fmt.Print("Serializing index...\n")
 	blockIndex := []int{}
 	for i := 0; i < len(keys); i++ {
 		value := append(SizeAndValueToBytes(keys[i]), IntToBytes(int64(keyOffsets[i]))...)
-		currBlock := fw.Write(value, false)
+		currBlock := fw.Write(value, false, nil)
 		blockIndex = append(blockIndex, currBlock)
 	}
 	return blockIndex
 }
 func SerializeSummary(keys []string, offsets []int, fw file_writer.FileWriterInterface) {
-	fmt.Print("Serializing summary\n")
+	fmt.Print("Serializing summary...\n")
 	for i := 0; i < len(keys); i = i + CONFIG.SummaryStep {
 		value := append(SizeAndValueToBytes(keys[i]), IntToBytes(int64(offsets[i]))...)
-		fw.Write(value, false)
+		fw.Write(value, false, nil)
 	}
 }
 
 func SerializeMetaData(summaryStartOffset int, bloomFilterBytes []byte, merkleTreeBytes []byte, numOfItems int, fw file_writer.FileWriterInterface) {
-	fmt.Print("serializing metadata\n")
-	fw.Write(IntToBytes(int64(len(bloomFilterBytes))), false)
-	fmt.Printf("Bloom filter size: %d\n", len(bloomFilterBytes))
-	fw.Write(bloomFilterBytes, false)
-	fmt.Printf("Bloom filter data: %v\n", bloomFilterBytes)
-	fw.Write(IntToBytes(int64(summaryStartOffset)), false)
-	fmt.Printf("Summary start: %d\n", summaryStartOffset)
-	fw.Write(IntToBytes((int64(numOfItems))), false)
-	fmt.Printf("Number of items: %d\n", numOfItems)
-	fw.Write(merkleTreeBytes, true)
-	fmt.Printf("Merkle tree data: %v\n", merkleTreeBytes)
-	metadataLength := 8 + len(bloomFilterBytes) + 8 + 8 + len(merkleTreeBytes)
-	fmt.Printf("Metadata length: %d\n", metadataLength)
-	fw.Write(IntToBytes(int64(metadataLength)), true) // Write metadata length
+	fmt.Print("Serializing metadata...\n")
+	fw.Write(IntToBytes(int64(len(bloomFilterBytes))), false, nil)
+	fmt.Printf("Bloom filter bytes length: %d\n", len(IntToBytes(int64(len(bloomFilterBytes)))))
+	fw.Write(bloomFilterBytes, false, nil)
+	fmt.Printf("Bloom filter bytes record len: %v\n", len(bloomFilterBytes))
+	fw.Write(IntToBytes(int64(summaryStartOffset)), false, nil)
+	fmt.Printf("Summary start offset record len: %d\n", len(IntToBytes(int64(summaryStartOffset))))
+	fw.Write(IntToBytes(int64(numOfItems)), false, nil)
+	fmt.Printf("Number of items record len: %d\n", len(IntToBytes(int64(numOfItems))))
+	fw.Write(IntToBytes(int64(len(merkleTreeBytes))), false, nil)
+	fmt.Printf("Merkle tree bytes length: %d\n", len(IntToBytes(int64(len(merkleTreeBytes)))))
+	fw.Write(merkleTreeBytes, false, nil)
+	fmt.Printf("Merkle tree bytes record len: %v\n", len(merkleTreeBytes))
+	metadataLength := 8 + len(bloomFilterBytes) + 8 + 8 + 8 + len(merkleTreeBytes) + 8
+	fw.Write(nil, true, IntToBytes(int64(metadataLength)))
+
 }
 
 func IntToBytes(n int64) []byte {
-	buf := make([]byte, 8) // 8 bytes for int64
+	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, uint64(n))
 	return buf
 }

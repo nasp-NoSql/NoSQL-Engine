@@ -22,11 +22,11 @@ func NewNode(data []byte, number int, filename string) *Block {
 	}
 }
 
-func (n *Block) GetData() []byte {
+func (n *Block) Get() []byte {
 	return n.data
 }
 
-func (n *Block) SetData(data []byte) {
+func (n *Block) Set(data []byte) {
 	n.data = data
 }
 
@@ -101,7 +101,7 @@ func (list *DoublyLinkedList) InsertEnd(n *Block) {
 	}
 }
 
-func (list *DoublyLinkedList) InsertAtSpecificPosition(n *Block, pos int) {
+func (list *DoublyLinkedList) InsertAtPosition(n *Block, pos int) {
 
 	if pos >= list.length {
 		fmt.Printf("Size Exceeding\n")
@@ -128,7 +128,7 @@ func (list *DoublyLinkedList) InsertAtSpecificPosition(n *Block, pos int) {
 
 }
 
-func (list *DoublyLinkedList) DeleteFromBegining() {
+func (list *DoublyLinkedList) DeleteBegining() {
 
 	if list.head == nil {
 		fmt.Printf("Empty Linked List\n")
@@ -144,7 +144,7 @@ func (list *DoublyLinkedList) DeleteFromBegining() {
 	}
 }
 
-func (list *DoublyLinkedList) DeleteFromEnd() {
+func (list *DoublyLinkedList) DeleteEnd() {
 
 	if list.head == nil {
 		fmt.Printf("Empty Linked List\n")
@@ -161,15 +161,15 @@ func (list *DoublyLinkedList) DeleteFromEnd() {
 
 }
 
-func (list *DoublyLinkedList) DeleteFromSpecificPosition(pos int) {
+func (list *DoublyLinkedList) DeleteFromPosition(pos int) {
 
 	if pos >= list.length {
 		fmt.Printf("Size Exceeding\n")
 	} else {
 		if pos == 0 {
-			list.DeleteFromBegining()
+			list.DeleteBegining()
 		} else if pos == -1 {
-			list.DeleteFromEnd()
+			list.DeleteEnd()
 		} else {
 			temp := list.head
 			index := 0
@@ -179,7 +179,7 @@ func (list *DoublyLinkedList) DeleteFromSpecificPosition(pos int) {
 			}
 
 			if temp == list.tail {
-				list.DeleteFromEnd()
+				list.DeleteEnd()
 			} else {
 				temp.next.prev = temp.prev
 				temp.prev.next = temp.next
@@ -190,7 +190,7 @@ func (list *DoublyLinkedList) DeleteFromSpecificPosition(pos int) {
 
 }
 
-func (list *DoublyLinkedList) DeleteLinkedList() {
+func (list *DoublyLinkedList) Delete() {
 
 	if list.head != nil {
 		temp := list.head
@@ -204,7 +204,7 @@ func (list *DoublyLinkedList) DeleteLinkedList() {
 
 }
 
-func (list *DoublyLinkedList) ViewHeadTail() {
+func (list *DoublyLinkedList) View() {
 	fmt.Println(list.head.data)
 	fmt.Println(list.tail.data)
 	fmt.Println(list.tail.prev.data)

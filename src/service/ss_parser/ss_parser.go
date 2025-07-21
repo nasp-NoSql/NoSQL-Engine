@@ -41,16 +41,15 @@ func (ssParser *SSParserImpl) parseNextMem() {
 	//_ = merkle_tree.GetMerkleTree(data)
 
 	keys, keyOffsets := SerializeDataGetOffsets(ssParser.fileWriter, data)
-	ssParser.fileWriter.Write(nil, true) // Write end of section marker
+	ssParser.fileWriter.Write(nil, true, nil) // Write end of section marker
 
 	indexOffsets := SerializeIndexGetOffsets(keys, keyOffsets, ssParser.fileWriter)
-	ssParser.fileWriter.Write(nil, true)
+	ssParser.fileWriter.Write(nil, true, nil)
 
 	SerializeSummary(keys, indexOffsets, ssParser.fileWriter)
-	ssParser.fileWriter.Write(nil, true)
+	ssParser.fileWriter.Write(nil, true, nil)
 
-	SerializeMetaData(ssParser.fileWriter.Write(nil, true), bloom, make([]byte, 0), len(data), ssParser.fileWriter)
-	ssParser.fileWriter.Write(nil, true)
+	SerializeMetaData(ssParser.fileWriter.Write(nil, true, nil), bloom, make([]byte, 0), len(data), ssParser.fileWriter)
 	if len(ssParser.mems) != 0 {
 		ssParser.parseNextMem()
 	} else {
