@@ -1,101 +1,116 @@
 package skiplist
 
 import (
+	"encoding/gob"
 	"fmt"
 	"math/rand"
+	"os"
+	"path/filepath"
 	"time"
 )
 
+type Node struct {
+	Key   string
+	Value string
+	Right *Node
+	Below *Node
+}
+
 type SkipList struct {
-	head   *Node
-	levels int
+	Head   *Node
+	Levels int
 }
 
 func (list *SkipList) initialize() {
-	list.head = &Node{key: ""}
-	tmp := list.head
-	for i := 0; i < list.levels; i++ {
-		tmp.below = &Node{key: ""}
-		tmp = tmp.below
+	list.Head = &Node{Key: ""}
+	tmp := list.Head
+	for i := 0; i < list.Levels; i++ {
+		tmp.Below = &Node{Key: ""}
+		tmp = tmp.Below
 	}
 }
 
+func NewSkipList(levels int) *SkipList {
+	if levels < 1 {
+		levels = 1
+	}
+	list := &SkipList{Levels: levels}
+	list.initialize()
+	return list
+}
+
 func (list *SkipList) Get(key string) (string, bool) {
-	tmp := list.head
+	tmp := list.Head
 
 	for {
-		fmt.Println(tmp)
-		if tmp.key == key {
-			if tmp.isDeleted {
+		if tmp.Key == key {
+			if tmp.Value == "<TOMBSTONE!>" {
 				return "", false
 			}
-			return tmp.value, true
+			return tmp.Value, true
 		}
-		if tmp.right == nil {
-			if tmp.below == nil {
+		if tmp.Right == nil {
+			if tmp.Below == nil {
 				return "", false
-			} else {
-				tmp = tmp.below
 			}
+			tmp = tmp.Below
 		} else {
-			if tmp.right.key > key {
+			if tmp.Right.Key > key {
 				return "", false
 			}
-			tmp = tmp.right
+			tmp = tmp.Right
 		}
 	}
 }
 
 func (list *SkipList) Remove(key string) bool {
 	node, exists := list.findToRemove(key)
-
 	if !exists {
 		return false
 	}
-
 	for node != nil {
-		node.isDeleted = true
-		node = node.below
+		node.Value = "<TOMBSTONE!>"
+		node = node.Below
 	}
 	return true
 }
 
 func (list *SkipList) findToRemove(key string) (*Node, bool) {
-	tmp := list.head
+	tmp := list.Head
 
 	for {
-		if tmp.right != nil && tmp.right.key == key {
-			return tmp.right, true
+		if tmp.Right != nil && tmp.Right.Key == key {
+			return tmp.Right, true
 		}
-		if tmp.right == nil && tmp.below == nil {
+		if tmp.Right == nil && tmp.Below == nil {
 			return nil, false
 		}
 
-		if tmp.right == nil || tmp.right.key > key {
-			tmp = tmp.below
+		if tmp.Right == nil || tmp.Right.Key > key {
+			tmp = tmp.Below
 		} else {
-			tmp = tmp.right
+			tmp = tmp.Right
 		}
 	}
 }
 
 func (list *SkipList) findToAdd(key string) []*Node {
-	node := list.head
-	lefts := make([]*Node, 0, list.levels)
+	node := list.Head
+	lefts := make([]*Node, 0, list.Levels)
 
 	for {
-		if node.right == nil && node.below == nil {
+		if node.Right == nil && node.Below == nil {
 			return append(lefts, node)
 		}
-		if node.right != nil && node.right.key > key && node.below == nil {
+		if node.Right != nil && node.Right.Key > key && node.Below == nil {
 			return append(lefts, node)
 		}
 
-		if node.right == nil || node.right.key > key {
+		if node.Right == nil || node.Right.Key > key {
 			lefts = append(lefts, node)
-			node = node.below
+			node = node.Below
 		} else {
-			node = node.right
+			node = node.Right
 		}
 	}
 }
@@ -109,13 +124,13 @@ func coinFlip(r *rand.Rand) string {
 }
 
 func (list *SkipList) Add(key string, value string) {
-	if list.head == nil {
+	if list.Head == nil {
 		list.initialize()
 	}
 	times_to_add := 1
 
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	for ; times_to_add < list.levels; times_to_add++ {
+	for ; times_to_add < list.Levels; times_to_add++ {
 		if coinFlip(r) == "Tails" {
 			break
 		}
@@ -128,33 +143,58 @@ func (list *SkipList) Add(key string, value string) {
 		if times_to_add == 0 {
 			break
 		}
-		node := &Node{key: key, value: value, isDeleted: false}
-		tmp := lefts[i].right
-		node.right = tmp
-		lefts[i].right = node
+		node := &Node{Key: key, Value: value}
+		tmp := lefts[i].Right
+		node.Right = tmp
+		lefts[i].Right = node
 		added[times_to_add-1] = node
 		times_to_add--
 	}
 
 	for i := 0; i < len(added)-1; i++ {
-		added[i].below = added[i+1]
+		added[i].Below = added[i+1]
 	}
 }
 
 func (list *SkipList) Print() {
-	node := list.head
-	for i := 0; i < list.levels+1; i++ {
-		fmt.Println(i + 1)
-		nextLevel := node.below
-		for {
-			fmt.Print(node)
-			if node.right == nil {
-				break
-			} else {
-				node = node.right
+	node := list.Head
+	for i := 0; i < list.Levels+1; i++ {
+		fmt.Printf("Level %d: ", i+1)
+		nextLevel := node.Below
+		tmp := node
+		for tmp != nil {
+			if tmp.Key != "" {
+				fmt.Printf("(%s,%s) ", tmp.Key, tmp.Value)
 			}
+			tmp = tmp.Right
 		}
 		fmt.Println()
 		node = nextLevel
 	}
+}
+
+func (list *SkipList) Serialize(filename string) error {
+	path := filepath.Join("src/models/serialized", filename)
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	enc := gob.NewEncoder(file)
+	return enc.Encode(list)
+}
+
+func Deserialize(filename string) (*SkipList, error) {
+	path := filepath.Join("src/models/serialized", filename)
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	dec := gob.NewDecoder(file)
+	var list SkipList
+	if err := dec.Decode(&list); err != nil {
+		return nil, err
+	}
+	return &list, nil
 }

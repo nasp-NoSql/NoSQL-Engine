@@ -3,45 +3,52 @@ package bloom_filter
 import (
 	"encoding/binary"
 	"os"
+	"path/filepath"
 )
 
 type BloomFilter struct {
-	k      int32
-	m      int32
-	array  []byte
-	hashes []HashWithSeed
+	K      int32
+	M      int32
+	Array  []byte
+	Hashes []HashWithSeed
 }
 
 func (filter *BloomFilter) calculateParams(expectedElements int, falsePositiveRate float64) {
 	m := CalculateM(expectedElements, falsePositiveRate)
 	k := CalculateK(expectedElements, m)
-	filter.k = int32(k)
-	filter.m = int32(m)
+	filter.K = int32(k)
+	filter.M = int32(m)
 }
 
-func (filter *BloomFilter) Initialize(expectedElements int, falsePositiveRate float64) {
+func Initialize(expectedElements int, falsePositiveRate float64) *BloomFilter {
+	filter := &BloomFilter{}
 	filter.calculateParams(expectedElements, falsePositiveRate)
-	filter.array = make([]byte, filter.m)
-	filter.hashes = CreateHashFunctions(uint32(filter.k))
+	filter.Array = make([]byte, filter.M)
+	filter.Hashes = CreateHashFunctions(uint32(filter.K))
+	return filter
 }
 
 func (filter *BloomFilter) Add(s string) {
-	for _, hash := range filter.hashes {
+	for _, hash := range filter.Hashes {
 		hashed_value := hash.Hash([]byte(s))
-		index := hashed_value % uint64(filter.m)
-		filter.array[index] = 1
+		index := hashed_value % uint64(filter.M)
+		filter.Array[index] = 1
 	}
 }
 
 func (filter *BloomFilter) AddMultiple(s []string) []byte {
 	for i := 0; i < len(s); i++ {
-		for _, hash := range filter.hashes {
+		for _, hash := range filter.Hashes {
 			hashed_value := hash.Hash([]byte(s[i]))
-			index := hashed_value % uint64(filter.m)
-			filter.array[index] = 1
+			index := hashed_value % uint64(filter.M)
+			filter.Array[index] = 1
 		}
 	}
-	return filter.array
+	return filter.Array
+}
+
+func (filter *BloomFilter) GetArray() []byte {
+	return filter.Array
 }
 
 func GetBloomFilterArray(s []string) []byte {
@@ -85,9 +92,9 @@ func GetHashFunctions(filename string, k uint32) ([]HashWithSeed, error) {
 }
 
 func (filter *BloomFilter) Check(s string) bool {
-	for _, hash := range filter.hashes {
+	for _, hash := range filter.Hashes {
 		index := hash.Hash([]byte(s))
-		if filter.array[index%uint64(filter.m)] != 1 {
+		if filter.Array[index%uint64(filter.M)] != 1 {
 			return false
 		}
 	}
@@ -95,25 +102,26 @@ func (filter *BloomFilter) Check(s string) bool {
 }
 
 func (filter BloomFilter) Serialize(filename string) error {
-	file, err := os.Create(filename)
+	path := filepath.Join("src/models/serialized", filename)
+	file, err := os.Create(path)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	if err := binary.Write(file, binary.BigEndian, int32(filter.k)); err != nil {
+	if err := binary.Write(file, binary.BigEndian, int32(filter.K)); err != nil {
 		return err
 	}
 
-	if err := binary.Write(file, binary.BigEndian, int32(filter.m)); err != nil {
+	if err := binary.Write(file, binary.BigEndian, int32(filter.M)); err != nil {
 		return err
 	}
 
-	if err := binary.Write(file, binary.BigEndian, filter.array); err != nil {
+	if err := binary.Write(file, binary.BigEndian, filter.Array); err != nil {
 		return err
 	}
 
-	for _, hash := range filter.hashes {
+	for _, hash := range filter.Hashes {
 		if err := binary.Write(file, binary.BigEndian, hash.Seed); err != nil {
 			return err
 		}
@@ -124,36 +132,34 @@ func (filter BloomFilter) Serialize(filename string) error {
 
 func Deserialize(filename string) (BloomFilter, error) {
 	var filter BloomFilter
-
-	file, err := os.Open(filename)
-
+	path := filepath.Join("src/models/serialized", filename)
+	file, err := os.Open(path)
 	if err != nil {
 		return filter, err
 	}
-
 	defer file.Close()
 
-	if err := binary.Read(file, binary.BigEndian, &filter.k); err != nil {
+	if err := binary.Read(file, binary.BigEndian, &filter.K); err != nil {
 		return filter, err
 	}
 
-	if err := binary.Read(file, binary.BigEndian, &filter.m); err != nil {
+	if err := binary.Read(file, binary.BigEndian, &filter.M); err != nil {
 		return filter, err
 	}
 
-	filter.array = make([]byte, filter.m)
-	if _, err := file.Read(filter.array); err != nil {
+	filter.Array = make([]byte, filter.M)
+	if err := binary.Read(file, binary.BigEndian, filter.Array); err != nil {
 		return filter, err
 	}
 
-	filter.hashes = make([]HashWithSeed, filter.k)
+	filter.Hashes = make([]HashWithSeed, filter.K)
 
-	for i := 0; i < int(filter.k); i++ {
+	for i := 0; i < int(filter.K); i++ {
 		hash := make([]byte, 4)
-		if _, err := file.Read(hash); err != nil {
+		if err := binary.Read(file, binary.BigEndian, hash); err != nil {
 			return filter, err
 		}
-		filter.hashes[i] = HashWithSeed{hash}
+		filter.Hashes[i] = HashWithSeed{hash}
 	}
 
 	return filter, nil
