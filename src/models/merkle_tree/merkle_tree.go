@@ -62,6 +62,44 @@ func GetMerkleTree(data []string) string {
 	return BuildMerkleTree(leafNodes).Hash
 }
 
+func BuildMerkleTreeFromBlocks(blocks [][]string) string {
+	var roots []string
+
+	for _, block := range blocks {
+		root := GetMerkleTree(block)
+		roots = append(roots, root)
+	}
+
+	return GetMerkleTree(roots)
+}
+
+/*primer upotrebe
+
+import "os"
+
+func GetBlockCount(filePath string, blockSize int64) (int64, error) {
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return 0, err
+	}
+
+	fileSize := info.Size()
+	blockCount := (fileSize + blockSize - 1) / blockSize // ceil division
+
+	return blockCount, nil
+}
+
+func BuildMerkleTree(data, nBlokova){
+	if sstSize > 1*1024*1024 { // veće od 1MB
+    // koristi blokovni Merkle - brzi za vece
+} else {
+    // koristi GetMerkleTree - brzi za manje
+}
+}
+
+
+*/
+
 // data = sstable.parse() tako nešto
 func ValidateSSTable(sstable_data []string) (bool, error) {
 	// 1. Učitaj Merkle root iz metapodataka
