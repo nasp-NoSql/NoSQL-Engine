@@ -1,118 +1,154 @@
 package b_tree
 
+import (
+	"encoding/gob"
+	"os"
+	"path/filepath"
+)
+
 // BTreeNode represents a node in the B-Tree
 type BTreeNode struct {
-	keys     []string
-	values   []string
-	children []*BTreeNode
-	isLeaf   bool
+	Keys     []string
+	Values   []string
+	Children []*BTreeNode
+	IsLeaf   bool
 }
 
 // BTree represents the B-Tree itself
 // t is the minimum degree (defines the range for number of keys)
 type BTree struct {
-	root *BTreeNode
-	t    int
+	Root *BTreeNode
+	T    int // minimum degree
 }
 
 // NewBTree creates a new B-Tree with given minimum degree
 func NewBTree(t int) *BTree {
-	return &BTree{root: &BTreeNode{isLeaf: true}, t: t}
+	return &BTree{Root: &BTreeNode{IsLeaf: true}, T: t}
 }
 
-// Get returns the value and true if key is present in the B-Tree
-func (tree *BTree) Get(key string) (string, bool) {
-	return tree.root.search(key)
+func (tree *BTree) Search(key string) (string, bool) {
+	return tree.Root.search(key)
 }
 
 func (node *BTreeNode) search(key string) (string, bool) {
 	i := 0
-	for i < len(node.keys) && key > node.keys[i] {
+	for i < len(node.Keys) && key > node.Keys[i] {
 		i++
 	}
-	if i < len(node.keys) && key == node.keys[i] && node.values[i] != "<TOMBSTONE!>" {
-		return node.values[i], true
+	if i < len(node.Keys) && key == node.Keys[i] {
+		if node.Values[i] == "<TOMBSTONE!>" {
+			return "", false
+		}
+		return node.Values[i], true
 	}
-	if node.isLeaf {
+	if node.IsLeaf {
 		return "", false
 	}
-	return node.children[i].search(key)
+	return node.Children[i].search(key)
 }
 
-// Add inserts a key-value pair into the B-Tree
 func (tree *BTree) Add(key, value string) {
-	root := tree.root
-	if len(root.keys) == 2*tree.t-1 {
-		s := &BTreeNode{isLeaf: false, children: []*BTreeNode{root}}
-		tree.root = s
-		s.splitChild(0, tree.t)
-		s.addNonFull(key, value, tree.t)
+	root := tree.Root
+	if len(root.Keys) == 2*tree.T-1 {
+		s := &BTreeNode{IsLeaf: false, Children: []*BTreeNode{root}}
+		tree.Root = s
+		s.splitChild(0, tree.T)
+		s.addNonFull(key, value, tree.T)
 	} else {
-		root.addNonFull(key, value, tree.t)
+		root.addNonFull(key, value, tree.T)
 	}
 }
 
 func (node *BTreeNode) addNonFull(key, value string, t int) {
-	i := len(node.keys) - 1
-	if node.isLeaf {
-		node.keys = append(node.keys, "")
-		node.values = append(node.values, "")
-		for i >= 0 && key < node.keys[i] {
-			node.keys[i+1] = node.keys[i]
-			node.values[i+1] = node.values[i]
+	i := len(node.Keys) - 1
+	if node.IsLeaf {
+		node.Keys = append(node.Keys, "")
+		node.Values = append(node.Values, "")
+		for i >= 0 && key < node.Keys[i] {
+			node.Keys[i+1] = node.Keys[i]
+			node.Values[i+1] = node.Values[i]
 			i--
 		}
-		node.keys[i+1] = key
-		node.values[i+1] = value
+		node.Keys[i+1] = key
+		node.Values[i+1] = value
 		return
 	}
-	for i >= 0 && key < node.keys[i] {
+
+	for i >= 0 && key < node.Keys[i] {
 		i--
 	}
 	i++
-	if len(node.children[i].keys) == 2*t-1 {
+	if len(node.Children[i].Keys) == 2*t-1 {
 		node.splitChild(i, t)
-		if key > node.keys[i] {
+		if key > node.Keys[i] {
 			i++
 		}
 	}
-	node.children[i].addNonFull(key, value, t)
+	node.Children[i].addNonFull(key, value, t)
 }
 
 func (node *BTreeNode) splitChild(i, t int) {
-	y := node.children[i]
-	z := &BTreeNode{isLeaf: y.isLeaf}
-	z.keys = append(z.keys, y.keys[t:]...)
-	z.values = append(z.values, y.values[t:]...)
-	y.keys = y.keys[:t-1]
-	y.values = y.values[:t-1]
-	if !y.isLeaf {
-		z.children = append(z.children, y.children[t:]...)
-		y.children = y.children[:t]
+	y := node.Children[i]
+	z := &BTreeNode{IsLeaf: y.IsLeaf}
+	z.Keys = append(z.Keys, y.Keys[t:]...)
+	z.Values = append(z.Values, y.Values[t:]...)
+	y.Keys = y.Keys[:t-1]
+	y.Values = y.Values[:t-1]
+	if !y.IsLeaf {
+		z.Children = append(z.Children, y.Children[t:]...)
+		y.Children = y.Children[:t]
 	}
-	node.children = append(node.children, nil)
-	copy(node.children[i+2:], node.children[i+1:])
-	node.children[i+1] = z
-	node.keys = append(node.keys, "")
-	node.values = append(node.values, "")
-	copy(node.keys[i+1:], node.keys[i:])
-	copy(node.values[i+1:], node.values[i:])
-	node.keys[i] = y.keys[t-1]
-	node.values[i] = y.values[t-1]
+	node.Children = append(node.Children, nil)
+	copy(node.Children[i+2:], node.Children[i+1:])
+	node.Children[i+1] = z
+	node.Keys = append(node.Keys, "")
+	node.Values = append(node.Values, "")
+	copy(node.Keys[i+1:], node.Keys[i:])
+	copy(node.Values[i+1:], node.Values[i:])
+	node.Keys[i] = y.Keys[t-1]
+	node.Values[i] = y.Values[t-1]
 }
 
 // Remove sets the value of the key to "<TOMBSTONE!>" if found (logical removal)
 func (node *BTreeNode) Remove(key string) {
 	i := 0
-	for i < len(node.keys) && key > node.keys[i] {
+	for i < len(node.Keys) && key > node.Keys[i] {
 		i++
 	}
-	if i < len(node.keys) && key == node.keys[i] {
-		node.values[i] = "<TOMBSTONE!>"
+	if i < len(node.Keys) && key == node.Keys[i] {
+		node.Values[i] = "<TOMBSTONE!>"
 		return
 	}
-	if node.isLeaf {
+	if node.IsLeaf {
 		return
 	}
-	node.children[i].Remove(key)
+	node.Children[i].Remove(key)
+}
+
+// Serialize serializes the B-Tree into a byte slice
+func (tree *BTree) Serialize(filename string) error {
+	path := filepath.Join("src/models/serialized", filename)
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	enc := gob.NewEncoder(file)
+	return enc.Encode(tree)
+}
+
+// Deserialize deserializes a byte slice into a B-Tree
+func Deserialize(filename string) (*BTree, error) {
+	path := filepath.Join("src/models/serialized", filename)
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	dec := gob.NewDecoder(file)
+	var tree BTree
+	if err := dec.Decode(&tree); err != nil {
+		return nil, err
+	}
+	return &tree, nil
 }
