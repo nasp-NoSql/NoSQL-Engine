@@ -125,7 +125,7 @@ func (w *WAL) Flush() error {
 	}
 	for _, entry := range w.buffer {
 		if w.writer != nil {
-			w.writer.Write(entry, false)
+			w.writer.Write(entry, false, nil)
 		} else {
 			if _, err := w.file.Write(entry); err != nil {
 				return err
