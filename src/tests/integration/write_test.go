@@ -22,7 +22,7 @@ func bytesToInt(buf []byte) int64 {
 func TestWritePathIntegration(t *testing.T) {
 	// Setup block manager and file writer
 	bm := b.NewBlockManager()
-	blockSize := b.BLOCK_SIZE
+	blockSize := CONFIG.BlockSize
 	fileWriter := fw.NewFileWriter(*bm, blockSize)
 	ssParser := ss_parser.NewSSParser(fileWriter)
 
@@ -74,13 +74,14 @@ func TestWriteRead(t *testing.T) {
 
 	// Write the memtable to disk via the parser and file writer
 	ssParser.AddMemtable(keyValues)
-
+	fmt.Print(
+		"File written successfully, now reading the data back...\n")
 	reader := rw.NewFileReader(fileWriter.GetLocation(), blockSize, *bm)
 
 	retriever := r.NewEntryRetriever(*reader)
 
-	retrievedData, err := retriever.RetrieveEntry("key1")
-	fmt.Printf("Retrieved data: %v\n", retrievedData)
+	err := retriever.RetrieveEntry("key1")
+	//fmt.Printf("Retrieved data: %v\n", retrievedData)
 
 	/*retrieved data is of this tyep type Metadata struct {
 		bf_size       int64
