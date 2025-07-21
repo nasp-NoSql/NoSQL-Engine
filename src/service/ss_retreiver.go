@@ -15,7 +15,6 @@ type Metadata struct {
 	bf_size       int64
 	bf_data       []byte
 	summary_start int64
-	summary_size  int64
 	numOfItems    int64
 	merkle_size   int64
 	merkle_data   []byte
@@ -24,77 +23,68 @@ type Metadata struct {
 var CONFIG = config.GetConfig()
 
 func bytesToInt(buf []byte) int64 {
-
 	return int64(binary.BigEndian.Uint64(buf))
+
 }
 func NewEntryRetriever(fileReader file_reader.FileReader) *EntryRetriever {
 	return &EntryRetriever{fileReader: fileReader}
 }
-
-func (r *EntryRetriever) RetrieveEntry(key string) (*Metadata, error) {
+func (r *EntryRetriever) RetrieveEntry(key string) error {
 	r.fileReader.SetDirection(false) // Set to read from back
-	//analyze metadata
-	metadata, err := r.fileReader.ReadEntry(0)
+	i := 0
+	block, err := r.fileReader.Read(i)
 	if err != nil {
-		fmt.Printf("Error reading metadata: %v\n", err)
-		return nil, err
+		return fmt.Errorf("error reading block %d: %v", i, err)
+	}
+	//start the read
+
+	is_jumbo := block[len(block)-8] == 1
+	if is_jumbo {
+		fmt.Println("This is a jumbo block")
 	}
 
-	mdSize := bytesToInt(metadata[:8])
-	if mdSize > int64(CONFIG.BlockSize) {
-		fmt.Print("metadata size exceeds BLOCK_SIZE")
-	}
-	fmt.Printf("Metadata size: %d\n", mdSize)
-	numOfBlocks := mdSize / int64(CONFIG.BlockSize)
-	if mdSize%int64(CONFIG.BlockSize) != 0 {
+	md_size := bytesToInt(block[len(block)-16 : len(block)-8])
+
+	fmt.Println("META SIZE:", md_size)
+	numOfBlocks := md_size / int64(CONFIG.BlockSize)
+
+	if md_size%int64(CONFIG.BlockSize) != 0 {
 		numOfBlocks++
 	}
-	mdBytes := make([]byte, 0, mdSize)
-	for i := int64(0); i < numOfBlocks; i++ {
-		block, err := r.fileReader.ReadEntry(int(i))
-		mdBytes = append(mdBytes, block...)
+	tempData := make([]byte, 0, i*CONFIG.BlockSize)
+	for i < int(numOfBlocks) {
+		block, err = r.fileReader.Read(i)
+		is_jumbo := block[len(block)-1] == 1
+
+		fmt.Println("Is jumbo:", is_jumbo)
+		fmt.Println("Block data: ", block)
+		block = block[:len(block)-8] // Remove the jumbo flag
 		if err != nil {
-			return nil, err
+			return fmt.Errorf("error reading block %d: %v", i, err)
 		}
-
 		if len(block) == 0 {
-			continue // Skip empty blocks
+			return fmt.Errorf("no more data to read in block %d", i)
 		}
-
+		i++
+		// Prepend block to maintain correct order (since we're reading backwards)
+		tempData = append(block, tempData...)
 	}
-	cleanedData := mdBytes[:mdSize]
-	fmt.Printf("Cleaned metadata size: %d\n", len(cleanedData))
-	bf_size := bytesToInt(cleanedData[len(cleanedData)-8:])
-	bf_size_int := int(bf_size)
-	bf_data := cleanedData[len(cleanedData)-8-bf_size_int : len(cleanedData)-8]
-	summary_start := bytesToInt(cleanedData[len(cleanedData)-16-bf_size_int : len(cleanedData)-8-bf_size_int])
-	summary_size := bytesToInt(cleanedData[len(cleanedData)-24-bf_size_int : len(cleanedData)-16-bf_size_int])
-	numOfItems := bytesToInt(cleanedData[len(cleanedData)-32-bf_size_int : len(cleanedData)-24-bf_size_int])
-	merkle_size := bytesToInt(cleanedData[len(cleanedData)-40-bf_size_int : len(cleanedData)-32-bf_size_int])
-	merkle_size_int := int(merkle_size)
-	merkle_data := cleanedData[len(cleanedData)-40-bf_size_int-merkle_size_int : len(cleanedData)-40-bf_size_int]
+	fmt.Println("Total data length:", len(tempData))
 
-	mt := &Metadata{
-		bf_size:       bf_size,
-		bf_data:       bf_data,
-		summary_start: summary_start,
-		summary_size:  summary_size,
-		numOfItems:    numOfItems,
-		merkle_size:   merkle_size,
-		merkle_data:   merkle_data,
-	}
-	fmt.Printf("Bloom filter size: %d\n", bf_size)
-	fmt.Printf("Bloom filter data: %v\n", bf_data)
-	fmt.Printf("Summary start: %d\n", summary_start)
-	fmt.Printf("Summary size: %d\n", summary_size)
-	fmt.Printf("Number of items: %d\n", numOfItems)
-	fmt.Printf("Merkle size: %d\n", merkle_size)
-	fmt.Printf("Merkle data: %v\n", merkle_data)
-	if len(mt.bf_data) == 0 {
-		fmt.Printf("Bloom filter is empty\n")
-	}
+	fmt.Println("Data: ", tempData)
+	// bf_size := bytesToInt(tempData[:8])
+	// fmt.Println("BLOOM FILTER SIZE:", bf_size)
+	// bf_data := tempData[8 : 8+bf_size]
+	// fmt.Println("BLOOM FILTER DATA:", bf_data)
+	// summary_start := bytesToInt(tempData[8+bf_size : 16+bf_size])
+	// num_of_items := bytesToInt(tempData[16+bf_size : 24+bf_size])
+	// len_merkle := bytesToInt(tempData[24+bf_size : 32+bf_size])
+	// merkle_data := tempData[32+bf_size : 32+bf_size+len_merkle]
+	// fmt.Println("MERKLE DATA:", merkle_data)
+	// fmt.Println("NUM OF ITEMS:", num_of_items)
+	// fmt.Println("SUMMARY START:", summary_start)
 
-	return mt, nil
+	return nil
 }
 
 // import (
