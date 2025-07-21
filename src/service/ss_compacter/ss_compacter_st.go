@@ -50,7 +50,7 @@ func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWrit
 			keyBytes[minIndex] = nil // Mark as used
 		} else {
 			fullVal := append(ss_parser.SizeAndValueToBytes(string(keyBytes[minIndex])), ss_parser.SizeAndValueToBytes(string(valBytes))...)
-			newBlockOffset := fw.Write(fullVal, false)
+			newBlockOffset := fw.Write(fullVal, false, nil)
 			if currBlockOffset != newBlockOffset {
 				currBlockOffset = newBlockOffset
 				keys = append(keys, string(keyBytes[minIndex]))
@@ -61,9 +61,9 @@ func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWrit
 		}
 		updateValsAndCounts(keyBytes, counts, readers)
 	}
-	fw.Write(nil, true) // Write end of file marker
+	fw.Write(nil, true, nil) // Write end of file marker
 
-	indexOffsets := ss_parser.SerializeIndexGetOffsets(keys, blockOffsets, fw)                              // Write index offsets
-	ss_parser.SerializeSummary(keys, indexOffsets, fw)                                                      // Write summary
-	ss_parser.SerializeMetaData(fw.Write([]byte{}, true), make([]byte, 0), make([]byte, 0), totalItems, fw) // Write metadata
+	indexOffsets := ss_parser.SerializeIndexGetOffsets(keys, blockOffsets, fw)                                   // Write index offsets
+	ss_parser.SerializeSummary(keys, indexOffsets, fw)                                                           // Write summary
+	ss_parser.SerializeMetaData(fw.Write([]byte{}, true, nil), make([]byte, 0), make([]byte, 0), totalItems, fw) // Write metadata
 }

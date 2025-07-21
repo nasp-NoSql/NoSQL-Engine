@@ -22,7 +22,7 @@ type FileWriterInterface interface {
 
 var _ file_writer.FileWriterInterface = (*FileWriterMock)(nil) // Ensure FileWriterMock implements the interface
 
-func (fw *FileWriterMock) Write(data []byte, sectionEnd bool) int {
+func (fw *FileWriterMock) Write(data []byte, sectionEnd bool, size []byte) int {
 	fw.rawBytes = append(fw.rawBytes, data...)
 	if sectionEnd {
 		fw.rawBytes = append(fw.rawBytes, 0) // Append a section end marker

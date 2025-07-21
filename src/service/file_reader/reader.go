@@ -28,7 +28,7 @@ func NewFileReader(location string, blockSize int, bm block_manager.BlockManager
 
 //direction lets us support reading from the end of the file or from the beginning
 
-func (fr *FileReader) ReadEntry(blockNum int) ([]byte, error) {
+func (fr *FileReader) Read(blockNum int) ([]byte, error) {
 	if len(fr.currentBlock) == 0 || fr.offsetInBlock >= len(fr.currentBlock) {
 		block, err := fr.block_manager.ReadBlock(fr.location, blockNum, fr.direction)
 		if err != nil {

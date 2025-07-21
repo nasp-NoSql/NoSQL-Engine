@@ -2,20 +2,26 @@ package block_manager
 
 import (
 	"fmt"
+	"io"
+	"nosqlEngine/src/config"
 	"os"
 )
 
-const BLOCK_SIZE = 4096 // Adjust as needed
+var CONFIG = config.GetConfig()
 
-type BlockManager struct{}
+type BlockManager struct {
+	block_size int
+}
 
 func NewBlockManager() *BlockManager {
-	return &BlockManager{}
+	return &BlockManager{
+		block_size: CONFIG.BlockSize,
+	}
 }
 
 func (bm *BlockManager) WriteBlock(location string, blockNumber int, data []byte) error {
-	if len(data) > BLOCK_SIZE {
-		return fmt.Errorf("data size exceeds BLOCK_SIZE")
+	if len(data) > bm.block_size {
+		return fmt.Errorf("data size exceeds block size")
 	}
 	file, err := os.OpenFile(location, os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
@@ -23,14 +29,13 @@ func (bm *BlockManager) WriteBlock(location string, blockNumber int, data []byte
 	}
 	defer file.Close()
 
-	offset := int64(BLOCK_SIZE * blockNumber)
+	offset := int64(bm.block_size * blockNumber)
 	_, err = file.Seek(offset, 0)
 	if err != nil {
 		return err
 	}
-	padded := make([]byte, BLOCK_SIZE)
-	copy(padded, data)
-	_, err = file.Write(padded)
+
+	_, err = file.Write(data)
 	return err
 }
 
@@ -46,23 +51,38 @@ func (bm *BlockManager) ReadBlock(location string, blockNumber int, direction bo
 	if err != nil {
 		return nil, err
 	}
+
 	if direction { // true: read from start
-		offset = int64(BLOCK_SIZE * blockNumber)
+		offset = int64(bm.block_size * blockNumber)
+		// Check if we're trying to read beyond the file
+		if offset >= fileInfo.Size() {
+			return nil, io.EOF
+		}
 	} else { // false: read from end
-		totalBlocks := int(fileInfo.Size()) / BLOCK_SIZE
-		offset = int64(BLOCK_SIZE * (totalBlocks - 1 - blockNumber))
+		totalBlocks := int(fileInfo.Size()) / bm.block_size
+		if blockNumber >= totalBlocks {
+			return nil, io.EOF
+		}
+		offset = int64(bm.block_size * (totalBlocks - 1 - blockNumber))
 		if offset < 0 {
 			offset = 0
 		}
 	}
+
 	_, err = file.Seek(offset, 0)
 	if err != nil {
 		return nil, err
 	}
-	buf := make([]byte, BLOCK_SIZE)
+	buf := make([]byte, bm.block_size)
 	n, err := file.Read(buf)
 	if err != nil {
 		return nil, err
 	}
+
+	// If we read 0 bytes, we've hit EOF
+	if n == 0 {
+		return nil, io.EOF
+	}
+
 	return buf[:n], nil
 }
