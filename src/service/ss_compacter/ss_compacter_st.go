@@ -1,8 +1,8 @@
-package sscompacter
+package ss_compacter
 
 import (
 	"nosqlEngine/src/config"
-	"nosqlEngine/src/service/block_manager"
+	"nosqlEngine/src/models/bloom_filter"
 	"nosqlEngine/src/service/file_writer"
 	"nosqlEngine/src/service/ss_parser"
 )
@@ -10,7 +10,6 @@ import (
 var CONFIG = config.GetConfig()
 
 type SSCompacterST struct {
-	bm *block_manager.BlockManager
 }
 type FileReader struct {
 	location string
@@ -24,6 +23,15 @@ func (fw *FileReader) Read(size int) []byte {
 }
 func (fw *FileReader) ReadMetaData() (int, []byte, []byte, int) {
 	return 0, make([]byte, 0), make([]byte, 0), 0 // Mock implementation, replace with actual reading logic
+}
+
+func NewSSCompacterST() *SSCompacterST {
+	return &SSCompacterST{}
+}	
+
+func (sc *SSCompacterST) CheckIfCompactionNeeded() bool {
+	// to be implemented
+	return true
 }
 
 func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWriter) {
@@ -41,6 +49,8 @@ func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWrit
 	blockOffsets := []int{}
 	currBlockOffset := -1
 
+	bloom := bloom_filter.Initialize(totalItems, 0.01) //
+	// merkle := merkle_tree.InitializeMerkleTree(totalItems) 
 	for !areAllValuesZero(counts) {
 		minIndex := getMinValIndex(keyBytes)
 		removeDuplicateKeys(keyBytes, minIndex, readers)
@@ -49,6 +59,8 @@ func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWrit
 			counts[minIndex]--
 			keyBytes[minIndex] = nil // Mark as used
 		} else {
+			bloom.Add(string(keyBytes[minIndex]))
+			// merkle.AddLeaf(string(keyBytes[minIndex]), valBytes) // Add to Merkle tree
 			fullVal := append(ss_parser.SizeAndValueToBytes(string(keyBytes[minIndex])), ss_parser.SizeAndValueToBytes(string(valBytes))...)
 			newBlockOffset := fw.Write(fullVal, false, nil)
 			if currBlockOffset != newBlockOffset {
@@ -65,5 +77,5 @@ func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWrit
 
 	indexOffsets := ss_parser.SerializeIndexGetOffsets(keys, blockOffsets, fw)                                   // Write index offsets
 	ss_parser.SerializeSummary(keys, indexOffsets, fw)                                                           // Write summary
-	ss_parser.SerializeMetaData(fw.Write([]byte{}, true, nil), make([]byte, 0), make([]byte, 0), totalItems, fw) // Write metadata
+	ss_parser.SerializeMetaData(fw.Write([]byte{}, true, nil), bloom.GetArray(), make([]byte, 0), totalItems, fw) // Write metadata
 }

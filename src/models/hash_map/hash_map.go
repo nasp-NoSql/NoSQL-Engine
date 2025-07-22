@@ -1,4 +1,4 @@
-package hashmap
+package hash_map
 
 import (
 	"nosqlEngine/src/models/key_value"
@@ -7,6 +7,11 @@ import (
 type HashMap struct {
 	data map[string]string
 	size int64
+}
+
+// GetSize implements memtable.Memtable.
+func (hmap *HashMap) GetSize() int {
+	return 40
 }
 
 func NewHashMap() *HashMap {

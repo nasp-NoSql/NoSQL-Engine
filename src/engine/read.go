@@ -1,0 +1,21 @@
+package engine
+
+import "fmt"
+
+func (engine *Engine) Read(user string, key string) (string, error) {
+	// Read from memtables
+	if ok, err := engine.userLimiter.CheckUserTokens(user); !ok {
+		return "", fmt.Errorf("user %s is not allowed to read: %w", user, err)
+	}
+	for _, mem := range engine.memtables {
+		if value, ok := mem.Get(key); ok {
+			// Found in memtable, return value
+			return value, nil
+		}
+	}
+	// Not found in memtables, read from SSTables
+	/*
+	
+
+	*/
+}

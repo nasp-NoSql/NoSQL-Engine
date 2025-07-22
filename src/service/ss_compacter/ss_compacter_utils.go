@@ -1,4 +1,4 @@
-package sscompacter
+package ss_compacter
 
 
 func updateValsAndCounts(vals [][]byte, counts []int, readers []*FileReader) {

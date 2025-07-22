@@ -18,11 +18,11 @@ type FileWriter struct {
 	allDataWritten  []byte
 }
 
-func NewFileWriter(bm block_manager.BlockManager, blockSize int) *FileWriter {
+func NewFileWriter(bm *block_manager.BlockManager, blockSize int) *FileWriter {
 	uuidStr := uuid.New().String()
 	location := filepath.ToSlash(filepath.Join("../../../data", "sstable_"+uuidStr+".db"))
 	return &FileWriter{
-		block_manager:   bm,
+		block_manager:   *bm,
 		location:        location,
 		currentBlock:    make([]byte, 0, blockSize),
 		currentBlockNum: 0,

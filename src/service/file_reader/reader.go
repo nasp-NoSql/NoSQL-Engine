@@ -55,3 +55,5 @@ func (fr *FileReader) SetDirection(forward bool) {
 func (fr *FileReader) GetAllDataRead() []byte {
 	return fr.allDataRead
 }
+
+// Read

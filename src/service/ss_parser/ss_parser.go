@@ -36,7 +36,7 @@ func (ssParser *SSParserImpl) parseNextMem() {
 	ssParser.mems = ssParser.mems[1:]
 
 	key_value.SortByKeys(&data)
-
+	
 	bloom := bloom_filter.GetBloomFilterArray(key_value.GetKeys(data))
 	//_ = merkle_tree.GetMerkleTree(data)
 

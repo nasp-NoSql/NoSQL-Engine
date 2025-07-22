@@ -123,7 +123,7 @@ func coinFlip(r *rand.Rand) string {
 	return "Tails"
 }
 
-func (list *SkipList) Add(key string, value string) {
+func (list *SkipList) Add(key string, value string) bool {
 	if list.Head == nil {
 		list.initialize()
 	}
@@ -154,6 +154,7 @@ func (list *SkipList) Add(key string, value string) {
 	for i := 0; i < len(added)-1; i++ {
 		added[i].Below = added[i+1]
 	}
+	return true
 }
 
 func (list *SkipList) Print() {
@@ -198,3 +199,5 @@ func Deserialize(filename string) (*SkipList, error) {
 	}
 	return &list, nil
 }
+
+func ToRaw()

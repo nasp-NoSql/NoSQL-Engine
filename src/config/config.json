@@ -1,5 +1,10 @@
 {
     "BLOCK_SIZE": 40,
     "SUMMARY_STEP":3,
-    "TOMBSTONE": "<TOMBSTONE!>"
-}
+    "TOMBSTONE": "<TOMBSTONE!>",
+    "TOKEN_REFILL_RATE": 0.1,
+    "MAX_TOKEN": 1000,
+    "MEMTABLE_TYPE": "hashmap",
+    "MEMTABLE_COUNT":2,
+    "MEMTABLE_SIZE": 100
+} 
