@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"nosqlEngine/src/config"
 	"nosqlEngine/src/service/block_manager"
 	"nosqlEngine/src/service/file_writer"
@@ -14,12 +15,12 @@ import (
 var CONFIG = config.GetConfig()
 
 type Engine struct {
-	userLimiter  *user_limiter.UserLimiter
-	memtables    []memtable.Memtable
+	userLimiter    *user_limiter.UserLimiter
+	memtables      []memtable.Memtable
 	curr_mem_index int
-	wal          wal.WAL
-	ss_parser    ss_parser.SSParser
-	ss_compacter  *ss_compacter.SSCompacterST
+	wal            *wal.WAL
+	ss_parser      ss_parser.SSParser
+	ss_compacter   *ss_compacter.SSCompacterST
 }
 
 func NewEngine() *Engine {
@@ -29,12 +30,17 @@ func NewEngine() *Engine {
 	for i := 0; i < memtableCount; i++ {
 		memtables[i] = memtable.NewMemtable()
 	}
+	wal, err := wal.NewWAL()
+	if err != nil {
+		fmt.Println("Error creating WAL:", err)
+		return nil
+	}
 	return &Engine{
-		userLimiter: user_limiter.NewUserLimiter(),
-		memtables:   memtables,
-		ss_parser: ss_parser.NewSSParser(file_writer.NewFileWriter(bm, CONFIG.BlockSize)),
+		userLimiter:  user_limiter.NewUserLimiter(),
+		memtables:    memtables,
+		ss_parser:    ss_parser.NewSSParser(file_writer.NewFileWriter(bm, CONFIG.BlockSize)),
 		ss_compacter: ss_compacter.NewSSCompacterST(),
-		wal:        wal.NewWAL("nosqlEngine/data/wal", 1, ),
+		wal:          wal,
 	}
 }
 func (engine *Engine) SetNextMemtable() {
@@ -45,7 +51,7 @@ func (engine *Engine) checkIfMemtableFull() bool {
 }
 
 func (engine *Engine) Start() {
-// wal.Replay("holder")
+	// wal.Replay("holder")
 }
 func (engine *Engine) Close() error {
 	return nil

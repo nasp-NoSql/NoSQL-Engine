@@ -164,3 +164,7 @@ func (fw *FileWriter) GetLocation() string {
 func (fw *FileWriter) GetCurrentBlockNum() int {
 	return fw.currentBlockNum
 }
+
+func (fw *FileWriter) SetLocation(location string) {
+	fw.location = location
+}
