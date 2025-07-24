@@ -219,5 +219,3 @@ func (fr *FileReader) ReadEntry(blockNum int) ([]byte, int, error) {
 
 	return entry, readBlocks, nil
 }
-
-// Read
