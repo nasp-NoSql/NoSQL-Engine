@@ -44,10 +44,9 @@ func NewWAL() (*WAL, error) {
 	// if err != nil {
 	// 	return nil, err
 	// }
-	bufferSize := CONFIG.WALBufferSize                      // default buffer size
-	segmentSize := CONFIG.WALSegmentSize                    // default segment size in bytes
-	writer := file_writer.NewFileWriter(nil, 0, "data/wal") // Create a new FileWriter with the segment size
-	writer.SetLocation(generateWALSegmentName())            // Set the location for the FileWriter
+	bufferSize := CONFIG.WALBufferSize                                                   // default buffer size
+	segmentSize := CONFIG.WALSegmentSize                                                 // default segment size in bytes
+	writer := file_writer.NewFileWriter(nil, CONFIG.BlockSize, generateWALSegmentName()) // Create a new FileWriter with the segment size
 	return &WAL{buffer: make([][]byte, 0, bufferSize), bufferSize: bufferSize, segmentSize: segmentSize, writer: writer}, nil
 }
 
@@ -201,7 +200,7 @@ func (w *WAL) Rotate() error {
 // Helper to generate a rotated WAL filename with timestamp
 
 func generateWALSegmentName() string {
-	return fmt.Sprintf("data/wal/wal-%s.log", time.Now().Format("20060102-150405"))
+	return fmt.Sprintf("wal/wal-%s.log", time.Now().Format("20060102-150405"))
 }
 
 // Helper to read and parse a single WAL entry from the file
