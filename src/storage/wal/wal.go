@@ -7,7 +7,6 @@ import (
 	"hash/crc32"
 	"io"
 	"nosqlEngine/src/config"
-	"nosqlEngine/src/service/file_reader"
 	"nosqlEngine/src/service/file_writer"
 	"os"
 	"path/filepath"
@@ -37,7 +36,6 @@ type WAL struct {
 	bufferSize  int                     // buffer pool size
 	segmentSize int                     // size of each segment in bytes
 	writer      *file_writer.FileWriter // add FileWriter for block writing
-	reader      *file_reader.FileReader // add FileReader for reading entries
 }
 
 // NewWAL creates or opens a WAL file for appending, with a buffer pool of given size
@@ -46,10 +44,10 @@ func NewWAL() (*WAL, error) {
 	// if err != nil {
 	// 	return nil, err
 	// }
-	bufferSize := CONFIG.WALBufferSize             // default buffer size
-	segmentSize := CONFIG.WALSegmentSize           // default segment size in bytes
-	writer := file_writer.NewFileWriter(nil, nil)  // Create a new FileWriter with the segment size
-	writer.SetLocation("data/wal/current-wal.log") // Set the location for the FileWriter
+	bufferSize := CONFIG.WALBufferSize                      // default buffer size
+	segmentSize := CONFIG.WALSegmentSize                    // default segment size in bytes
+	writer := file_writer.NewFileWriter(nil, 0, "data/wal") // Create a new FileWriter with the segment size
+	writer.SetLocation(generateWALSegmentName())            // Set the location for the FileWriter
 	return &WAL{buffer: make([][]byte, 0, bufferSize), bufferSize: bufferSize, segmentSize: segmentSize, writer: writer}, nil
 }
 
