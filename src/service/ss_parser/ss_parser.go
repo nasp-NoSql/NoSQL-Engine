@@ -36,8 +36,10 @@ func (ssParser *SSParserImpl) parseNextMem() {
 	ssParser.mems = ssParser.mems[1:]
 
 	key_value.SortByKeys(&data)
-	
-	bloom := bloom_filter.GetBloomFilterArray(key_value.GetKeys(data))
+
+	//bloom, _ := bloom_filter.GetBloomFilterArray(key_value.GetKeys(data))
+	filter := bloom_filter.NewBloomFilter()
+	filter.AddMultiple(key_value.GetKeys(data))
 	//_ = merkle_tree.GetMerkleTree(data)
 
 	keys, keyOffsets := SerializeDataGetOffsets(ssParser.fileWriter, data)
@@ -49,7 +51,7 @@ func (ssParser *SSParserImpl) parseNextMem() {
 	SerializeSummary(keys, indexOffsets, ssParser.fileWriter)
 	ssParser.fileWriter.Write(nil, true, nil)
 
-	SerializeMetaData(ssParser.fileWriter.Write(nil, true, nil), bloom, make([]byte, 0), len(data), ssParser.fileWriter)
+	SerializeMetaData(ssParser.fileWriter.Write(nil, true, nil), filter.GetArray(), make([]byte, 0), len(data), ssParser.fileWriter)
 	if len(ssParser.mems) != 0 {
 		ssParser.parseNextMem()
 	} else {

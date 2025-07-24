@@ -55,21 +55,24 @@ func (filter *BloomFilter) GetArray() []byte {
 	return filter.Array
 }
 
-func GetBloomFilterArray(s []string) []byte {
-	m := CalculateM(len(s), 0.01)
-	k := CalculateK(len(s), m)
-	hashes, _ := GetHashFunctions("storage/hashes.bin", uint32(k))
-	array := make([]byte, m)
+// func GetBloomFilterArray(s []string) ([]byte, error) {
+// 	m := CalculateM(len(s), 0.01)
+// 	k := CalculateK(len(s), m)
+// 	hashes, err := GetHashFunctions("storage/hashes.bin", uint32(k))
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	array := make([]byte, m)
 
-	for i := 0; i < len(s); i++ {
-		for _, hash := range hashes {
-			hashed_value := hash.Hash([]byte(s[i]))
-			index := hashed_value % uint64(m)
-			array[index] = 1
-		}
-	}
-	return array
-}
+// 	for i := 0; i < len(s); i++ {
+// 		for _, hash := range hashes {
+// 			hashed_value := hash.Hash([]byte(s[i]))
+// 			index := hashed_value % uint64(m)
+// 			array[index] = 1
+// 		}
+// 	}
+// 	return array, nil
+// }
 
 func GetHashFunctions(filename string, k uint32) ([]HashWithSeed, error) {
 	var hashfs []HashWithSeed
@@ -97,8 +100,8 @@ func GetHashFunctions(filename string, k uint32) ([]HashWithSeed, error) {
 
 func (filter *BloomFilter) Check(s string) bool {
 	for _, hash := range filter.Hashes {
-		index := hash.Hash([]byte(s))
-		if filter.Array[index%uint64(filter.M)] != 1 {
+		index := hash.Hash([]byte(s)) % uint64(filter.M)
+		if filter.Array[index] != 1 {
 			return false
 		}
 	}

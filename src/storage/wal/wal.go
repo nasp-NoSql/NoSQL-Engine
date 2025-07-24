@@ -7,6 +7,8 @@ import (
 	"hash/crc32"
 	"io"
 	"nosqlEngine/src/config"
+	"nosqlEngine/src/service/block_manager"
+	"nosqlEngine/src/service/file_reader"
 	"nosqlEngine/src/service/file_writer"
 	"os"
 	"path/filepath"
@@ -63,8 +65,8 @@ func encodeWALEntry(entry WALEntry) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	// Reserve space for CRC (4 bytes)
 	buf.Write(make([]byte, 4))
-	// Timestamp (16 bytes, use int64 seconds, pad to 16)
-	ts := make([]byte, 16)
+	// Timestamp (8 bytes, use int64 seconds)
+	ts := make([]byte, 8)
 	binary.LittleEndian.PutUint64(ts, uint64(entry.Timestamp))
 	buf.Write(ts)
 	// Tombstone (1 byte)
@@ -111,7 +113,7 @@ func (w *WAL) WriteDelete(key string) error {
 	entry := WALEntry{
 		Operation: "DELETE",
 		Key:       key,
-		Value:     "<TOMBSTONE!>",
+		Value:     "",
 		Timestamp: time.Now().Unix(),
 	}
 	data, err := encodeWALEntry(entry)
@@ -160,16 +162,16 @@ func (w *WAL) Flush() error {
 		if w.writer != nil {
 			w.writer.Write(entry, false, nil)
 			// If the segment size is reached, archive the current WAL segment
-			size, err := getFileSize("data/wal/current-wal.log")
-			if err != nil {
-				return err
-			}
-			if size >= int64(w.segmentSize) {
-				w.Rotate()
-			}
 		} else {
 			return nil
 		}
+	}
+	size, err := getFileSize(w.writer.GetLocation())
+	if err != nil {
+		return err
+	}
+	if size >= int64(w.segmentSize) {
+		w.Rotate()
 	}
 	w.buffer = w.buffer[:0]
 	return nil
@@ -204,27 +206,20 @@ func generateWALSegmentName() string {
 }
 
 // Helper to read and parse a single WAL entry from the file
-func readWALEntry(r io.Reader) (*WALEntry, uint32, []byte, error) {
-	head := make([]byte, 4+16+1+8+8) // CRC + Timestamp + Tombstone + KeySize + ValueSize
-	_, err := io.ReadFull(r, head)
-	if err != nil {
-		return nil, 0, nil, err
+func readWALEntry(reader *file_reader.FileReader, blockNum int) (*WALEntry, uint32, []byte, int, error) {
+	content, blocksUsed, _ := reader.ReadEntry(blockNum)
+
+	crc := binary.LittleEndian.Uint32(content[0:4])
+	ts := int64(binary.LittleEndian.Uint64(content[4:12]))
+	tombstone := content[12]
+	keySize := binary.LittleEndian.Uint64(content[13:21])
+	valueSize := binary.LittleEndian.Uint64(content[21:29])
+	if len(content) < 29+int(keySize)+int(valueSize) {
+		return nil, 0, nil, 0, fmt.Errorf("invalid WAL entry size: %d bytes", len(content))
 	}
-	crc := binary.LittleEndian.Uint32(head[0:4])
-	ts := int64(binary.LittleEndian.Uint64(head[4:12]))
-	tombstone := head[20]
-	keySize := binary.LittleEndian.Uint64(head[21:29])
-	valueSize := binary.LittleEndian.Uint64(head[29:37])
-	key := make([]byte, keySize)
-	if _, err := io.ReadFull(r, key); err != nil {
-		return nil, 0, nil, err
-	}
-	value := make([]byte, valueSize)
-	if _, err := io.ReadFull(r, value); err != nil {
-		return nil, 0, nil, err
-	}
-	payload := append(head[4:], key...)
-	payload = append(payload, value...)
+	key := content[29 : 29+keySize]
+	value := content[29+keySize : 29+keySize+valueSize]
+	payload := content[4:]
 	op := "PUT"
 	if tombstone == 1 {
 		op = "DELETE"
@@ -235,10 +230,10 @@ func readWALEntry(r io.Reader) (*WALEntry, uint32, []byte, error) {
 		Value:     string(value),
 		Timestamp: ts,
 	}
-	return entry, crc, payload, nil
+	return entry, crc, payload, blocksUsed, nil
 }
 
-func getWALSegmentPaths() ([]string, error) {
+func GetWALSegmentPaths() ([]string, error) {
 	walDir := "data/wal"
 	files, err := os.ReadDir(walDir)
 	if err != nil {
@@ -256,14 +251,17 @@ func getWALSegmentPaths() ([]string, error) {
 // ReplayWAL reads all the WAL segment files and returns all entries (for recovery)
 func ReplayWAL() ([]WALEntry, error) {
 	var allEntries []WALEntry
+	block_manager := block_manager.NewBlockManager()
+	reader := file_reader.NewFileReader("", CONFIG.BlockSize, *block_manager)
 	// Get the list of WAL segment files
-	segmentPaths, err := getWALSegmentPaths()
+	segmentPaths, err := GetWALSegmentPaths()
 	if err != nil {
 		return nil, err
 	}
 	// Replay each segment
 	for _, segment := range segmentPaths {
-		entries, err := replayWALSegment(segment)
+		reader.SetLocation(segment)
+		entries, err := replayWALSegment(reader)
 		if err != nil {
 			return nil, err
 		}
@@ -272,22 +270,15 @@ func ReplayWAL() ([]WALEntry, error) {
 	return allEntries, nil
 }
 
-func replayWALSegment(path string) ([]WALEntry, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
+func replayWALSegment(reader *file_reader.FileReader) ([]WALEntry, error) {
 	var entries []WALEntry
+	var blockIdx int
 	for {
-		entry, crc, payload, err := readWALEntry(f)
+		entry, crc, payload, blocksUsed, err := readWALEntry(reader, blockIdx)
 		if err == io.EOF {
-			break
+			break // End of segment
 		}
-		if err != nil {
-			return nil, err
-		}
+		blockIdx += blocksUsed
 		// Validate CRC
 		if crc32.ChecksumIEEE(payload) != crc {
 			return nil, fmt.Errorf("WAL entry CRC mismatch")
@@ -303,4 +294,16 @@ func DeleteWAL(path string) error {
 		return fmt.Errorf("failed to delete WAL file %s: %w", path, err)
 	}
 	return nil
+}
+
+func (w *WAL) SetBufferSize(size int) {
+	w.bufferSize = size
+}
+
+func (w *WAL) SetSegmentSize(size int) {
+	w.segmentSize = size
+}
+
+func (w *WAL) SetWriterLocation(location string) {
+	w.writer.SetLocation(location)
 }
