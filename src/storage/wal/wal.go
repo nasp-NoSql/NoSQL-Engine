@@ -7,6 +7,7 @@ import (
 	"hash/crc32"
 	"io"
 	"nosqlEngine/src/config"
+	"nosqlEngine/src/service/file_reader"
 	"nosqlEngine/src/service/file_writer"
 	"os"
 	"path/filepath"
@@ -36,6 +37,7 @@ type WAL struct {
 	bufferSize  int                     // buffer pool size
 	segmentSize int                     // size of each segment in bytes
 	writer      *file_writer.FileWriter // add FileWriter for block writing
+	reader      *file_reader.FileReader // add FileReader for reading entries
 }
 
 // NewWAL creates or opens a WAL file for appending, with a buffer pool of given size
@@ -44,9 +46,10 @@ func NewWAL() (*WAL, error) {
 	// if err != nil {
 	// 	return nil, err
 	// }
-	bufferSize := 100                                                                 // default buffer size
-	segmentSize := 4096                                                               // default segment size in bytes
-	writer := file_writer.NewFileWriter(nil, CONFIG.BlockSize, "wal/current-wal.log") // Create a new FileWriter with the segment size
+	bufferSize := CONFIG.WALBufferSize             // default buffer size
+	segmentSize := CONFIG.WALSegmentSize           // default segment size in bytes
+	writer := file_writer.NewFileWriter(nil, nil)  // Create a new FileWriter with the segment size
+	writer.SetLocation("data/wal/current-wal.log") // Set the location for the FileWriter
 	return &WAL{buffer: make([][]byte, 0, bufferSize), bufferSize: bufferSize, segmentSize: segmentSize, writer: writer}, nil
 }
 
@@ -125,31 +128,31 @@ func (w *WAL) WriteDelete(key string) error {
 	return nil
 }
 
-// Archive moves a WAL file to an archive directory
-func (w *WAL) Archive(archivePath string) error {
-	if err := os.MkdirAll(filepath.Dir(archivePath), 0755); err != nil {
-		return err
-	}
-	src, err := os.Open(w.writer.GetLocation())
-	if err != nil {
-		return err
-	}
-	defer src.Close()
-	archive, err := os.Create(archivePath)
-	if err != nil {
-		return err
-	}
-	defer archive.Close()
-	_, err = io.Copy(archive, src)
-	if err != nil {
-		return err
-	}
-	os.Truncate(w.writer.GetLocation(), 0) // Clear the original WAL file after archiving
-	if err := src.Close(); err != nil {
-		return err
-	}
-	return nil
-}
+// // Archive moves a WAL file to an archive directory
+// func (w *WAL) Archive(archivePath string) error {
+// 	if err := os.MkdirAll(filepath.Dir(archivePath), 0755); err != nil {
+// 		return err
+// 	}
+// 	src, err := os.Open(w.writer.GetLocation())
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer src.Close()
+// 	archive, err := os.Create(archivePath)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer archive.Close()
+// 	_, err = io.Copy(archive, src)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	os.Truncate(w.writer.GetLocation(), 0) // Clear the original WAL file after archiving
+// 	if err := src.Close(); err != nil {
+// 		return err
+// 	}
+// 	return nil
+// }
 
 // Flush writes the buffer to disk and clears it
 func (w *WAL) Flush() error {
@@ -165,7 +168,7 @@ func (w *WAL) Flush() error {
 				return err
 			}
 			if size >= int64(w.segmentSize) {
-				w.Archive(generateWALSegmentName())
+				w.Rotate()
 			}
 		} else {
 			return nil
@@ -191,20 +194,11 @@ func getFileSize(path string) (int64, error) {
 // 	return w.writer.Close()
 // }
 
-// Rotate closes the current WAL and starts a new one at newPath
-// func (w *WAL) Rotate(newPath string, bufferSize int) error {
-// 	if err := w.Close(); err != nil {
-// 		return err
-// 	}
-// 	f, err := os.OpenFile(newPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	w.file = f
-// 	w.buffer = make([][]byte, 0, bufferSize)
-// 	w.bufferSize = bufferSize
-// 	return nil
-// }
+func (w *WAL) Rotate() error {
+	w.writer.SetLocation(generateWALSegmentName())
+	w.buffer = make([][]byte, 0, w.bufferSize)
+	return nil
+}
 
 // Helper to generate a rotated WAL filename with timestamp
 
@@ -214,7 +208,6 @@ func generateWALSegmentName() string {
 
 // Helper to read and parse a single WAL entry from the file
 func readWALEntry(r io.Reader) (*WALEntry, uint32, []byte, error) {
-	//vraca se ceo zapis wal-a bez paddinga ----> jedan log
 	head := make([]byte, 4+16+1+8+8) // CRC + Timestamp + Tombstone + KeySize + ValueSize
 	_, err := io.ReadFull(r, head)
 	if err != nil {
@@ -260,7 +253,7 @@ func getWALSegmentPaths() ([]string, error) {
 			segmentPaths = append(segmentPaths, filepath.Join(walDir, file.Name()))
 		}
 	}
-	return append(segmentPaths, "data/wal/current-wal.log"), nil
+	return segmentPaths, nil
 }
 
 // ReplayWAL reads all the WAL segment files and returns all entries (for recovery)

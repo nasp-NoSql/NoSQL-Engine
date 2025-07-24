@@ -1,10 +1,14 @@
 package bloom_filter
 
 import (
+	"bytes"
 	"encoding/binary"
+	"nosqlEngine/src/config"
 	"os"
 	"path/filepath"
 )
+
+var CONFIG = config.GetConfig()
 
 type BloomFilter struct {
 	K      int32
@@ -20,9 +24,9 @@ func (filter *BloomFilter) calculateParams(expectedElements int, falsePositiveRa
 	filter.M = int32(m)
 }
 
-func Initialize(expectedElements int, falsePositiveRate float64) *BloomFilter {
+func NewBloomFilter() *BloomFilter {
 	filter := &BloomFilter{}
-	filter.calculateParams(expectedElements, falsePositiveRate)
+	filter.calculateParams(CONFIG.BloomFilterExpectedElements, CONFIG.BloomFilterFalsePositiveRate)
 	filter.Array = make([]byte, filter.M)
 	filter.Hashes = CreateHashFunctions(uint32(filter.K))
 	return filter
@@ -101,62 +105,70 @@ func (filter *BloomFilter) Check(s string) bool {
 	return true
 }
 
-func (filter BloomFilter) Serialize(filename string) error {
-	path := filepath.Join("src/models/serialized", filename)
-	file, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
+func (filter *BloomFilter) SerializeToByteArray() ([]byte, error) {
+	var buffer bytes.Buffer
 
-	if err := binary.Write(file, binary.BigEndian, int32(filter.K)); err != nil {
-		return err
+	if err := binary.Write(&buffer, binary.BigEndian, filter.K); err != nil {
+		return nil, err
 	}
 
-	if err := binary.Write(file, binary.BigEndian, int32(filter.M)); err != nil {
-		return err
+	if err := binary.Write(&buffer, binary.BigEndian, filter.M); err != nil {
+		return nil, err
 	}
 
-	if err := binary.Write(file, binary.BigEndian, filter.Array); err != nil {
-		return err
+	if err := binary.Write(&buffer, binary.BigEndian, filter.Array); err != nil {
+		return nil, err
 	}
 
 	for _, hash := range filter.Hashes {
-		if err := binary.Write(file, binary.BigEndian, hash.Seed); err != nil {
-			return err
+		if err := binary.Write(&buffer, binary.BigEndian, hash.Seed); err != nil {
+			return nil, err
 		}
 	}
 
-	return nil
+	return buffer.Bytes(), nil
 }
 
-func Deserialize(filename string) (BloomFilter, error) {
-	var filter BloomFilter
-	path := filepath.Join("src/models/serialized", filename)
-	file, err := os.Open(path)
+func (filter *BloomFilter) Serialize(filename string) error {
+	data, err := filter.SerializeToByteArray()
 	if err != nil {
-		return filter, err
-	}
-	defer file.Close()
-
-	if err := binary.Read(file, binary.BigEndian, &filter.K); err != nil {
-		return filter, err
+		return err
 	}
 
-	if err := binary.Read(file, binary.BigEndian, &filter.M); err != nil {
+	path := filepath.Join("src/models/serialized", filename)
+	return os.WriteFile(path, data, 0644)
+}
+
+func Deserialize(filename string) (*BloomFilter, error) {
+	path := filepath.Join("src/models/serialized", filename)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return DeserializeFromByteArray(data)
+}
+
+func DeserializeFromByteArray(data []byte) (*BloomFilter, error) {
+	filter := &BloomFilter{}
+	reader := bytes.NewReader(data)
+
+	if err := binary.Read(reader, binary.BigEndian, &filter.K); err != nil {
+		return filter, err
+	}
+
+	if err := binary.Read(reader, binary.BigEndian, &filter.M); err != nil {
 		return filter, err
 	}
 
 	filter.Array = make([]byte, filter.M)
-	if err := binary.Read(file, binary.BigEndian, filter.Array); err != nil {
+	if err := binary.Read(reader, binary.BigEndian, filter.Array); err != nil {
 		return filter, err
 	}
 
 	filter.Hashes = make([]HashWithSeed, filter.K)
-
 	for i := 0; i < int(filter.K); i++ {
 		hash := make([]byte, 4)
-		if err := binary.Read(file, binary.BigEndian, hash); err != nil {
+		if err := binary.Read(reader, binary.BigEndian, hash); err != nil {
 			return filter, err
 		}
 		filter.Hashes[i] = HashWithSeed{hash}

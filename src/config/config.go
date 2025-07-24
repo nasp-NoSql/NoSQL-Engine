@@ -10,14 +10,18 @@ import (
 var configData []byte
 
 type Config struct {
-	BlockSize   int    `json:"BLOCK_SIZE"`
-	SummaryStep int    `json:"SUMMARY_STEP"`
-	Tombstone      string  `json:"TOMBSTONE"`
-	TokenRefillRate float64 `json:"TOKEN_REFILL_RATE"`
-	MaxTokens   int    `json:"MAX_TOKEN"`
-	MemtableType string `json:"MEMTABLE_TYPE"`
-	MemtableCount int    `json:"MEMTABLE_COUNT"`
-	MemtableSize  int    `json:"MEMTABLE_SIZE"`
+	BlockSize                    int     `json:"BLOCK_SIZE"`
+	SummaryStep                  int     `json:"SUMMARY_STEP"`
+	Tombstone                    string  `json:"TOMBSTONE"`
+	TokenRefillRate              float64 `json:"TOKEN_REFILL_RATE"`
+	MaxTokens                    int     `json:"MAX_TOKEN"`
+	MemtableType                 string  `json:"MEMTABLE_TYPE"`
+	MemtableCount                int     `json:"MEMTABLE_COUNT"`
+	MemtableSize                 int     `json:"MEMTABLE_SIZE"`
+	WALBufferSize                int     `json:"WAL_BUFFER_SIZE"`
+	WALSegmentSize               int     `json:"WAL_SEGMENT_SIZE"`
+	BloomFilterFalsePositiveRate float64 `json:"BLOOM_FILTER_FALSE_POSITIVE_RATE"`
+	BloomFilterExpectedElements  int     `json:"BLOOM_FILTER_EXPECTED_ELEMENTS"`
 }
 
 func GetConfig() Config {

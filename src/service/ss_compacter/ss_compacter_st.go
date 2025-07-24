@@ -27,7 +27,7 @@ func (fw *FileReader) ReadMetaData() (int, []byte, []byte, int) {
 
 func NewSSCompacterST() *SSCompacterST {
 	return &SSCompacterST{}
-}	
+}
 
 func (sc *SSCompacterST) CheckIfCompactionNeeded() bool {
 	// to be implemented
@@ -49,8 +49,8 @@ func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWrit
 	blockOffsets := []int{}
 	currBlockOffset := -1
 
-	bloom := bloom_filter.Initialize(totalItems, 0.01) //
-	// merkle := merkle_tree.InitializeMerkleTree(totalItems) 
+	bloom := bloom_filter.NewBloomFilter() //
+	// merkle := merkle_tree.InitializeMerkleTree(totalItems)
 	for !areAllValuesZero(counts) {
 		minIndex := getMinValIndex(keyBytes)
 		removeDuplicateKeys(keyBytes, minIndex, readers)
@@ -75,7 +75,7 @@ func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWrit
 	}
 	fw.Write(nil, true, nil) // Write end of file marker
 
-	indexOffsets := ss_parser.SerializeIndexGetOffsets(keys, blockOffsets, fw)                                   // Write index offsets
-	ss_parser.SerializeSummary(keys, indexOffsets, fw)                                                           // Write summary
+	indexOffsets := ss_parser.SerializeIndexGetOffsets(keys, blockOffsets, fw)                                    // Write index offsets
+	ss_parser.SerializeSummary(keys, indexOffsets, fw)                                                            // Write summary
 	ss_parser.SerializeMetaData(fw.Write([]byte{}, true, nil), bloom.GetArray(), make([]byte, 0), totalItems, fw) // Write metadata
 }
