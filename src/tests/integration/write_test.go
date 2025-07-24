@@ -72,7 +72,7 @@ func TestWriteRead(t *testing.T) {
 	keyValues := make([]key_value.KeyValue, 0, 10)
 	for i := 0; i < 10; i++ {
 		key := fmt.Sprintf("key%d", i+1)
-		value := fmt.Sprintf("value%d", i+1)
+		value := fmt.Sprintf("valuejasfbkasdfblhjksdfjlkasdjnlfknjlfnjaklsdfnjlkasdfnjksdfnjkanjk%d", i+1)
 		keyValues = append(keyValues, key_value.NewKeyValue(key, value))
 	}
 
@@ -84,10 +84,10 @@ func TestWriteRead(t *testing.T) {
 
 	retriever := r.NewEntryRetriever(*reader)
 
-	metadata, err := retriever.RetrieveEntry("key1")
+	res, err := retriever.RetrieveEntry("key7")
 
 	if err != nil {
-		t.Fatalf("Failed to retrieve entry: %v for metadata: %v", err, metadata)
+		t.Fatalf("Failed to retrieve entry: %v for metadata: %v", err, res)
 	}
 
 	// fmt.Printf("Retrieved metadata: %v\n", metadata)
