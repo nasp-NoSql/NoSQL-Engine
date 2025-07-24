@@ -10,6 +10,8 @@ import (
 	"nosqlEngine/src/service/user_limiter"
 	"nosqlEngine/src/storage/memtable"
 	"nosqlEngine/src/storage/wal"
+
+	"github.com/google/uuid"
 )
 
 var CONFIG = config.GetConfig()
@@ -35,10 +37,11 @@ func NewEngine() *Engine {
 		fmt.Println("Error creating WAL:", err)
 		return nil
 	}
+	uuidStr := uuid.New().String()
 	return &Engine{
 		userLimiter:  user_limiter.NewUserLimiter(),
 		memtables:    memtables,
-		ss_parser:    ss_parser.NewSSParser(file_writer.NewFileWriter(bm, CONFIG.BlockSize)),
+		ss_parser:    ss_parser.NewSSParser(file_writer.NewFileWriter(bm, CONFIG.BlockSize, "sstable/sstable_"+uuidStr+".db")),
 		ss_compacter: ss_compacter.NewSSCompacterST(),
 		wal:          wal,
 	}

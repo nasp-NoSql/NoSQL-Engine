@@ -46,19 +46,13 @@ func SerializeSummary(keys []string, offsets []int, fw file_writer.FileWriterInt
 }
 
 func SerializeMetaData(summaryStartOffset int, bloomFilterBytes []byte, merkleTreeBytes []byte, numOfItems int, fw file_writer.FileWriterInterface) {
-	fmt.Print("Serializing metadata...\n")
 	fw.Write(IntToBytes(int64(len(bloomFilterBytes))), false, nil)
-	fmt.Printf("Bloom filter bytes length: %d\n", len(IntToBytes(int64(len(bloomFilterBytes)))))
+	fmt.Print("IZVORNI BF BTS:", bloomFilterBytes, "\n")
 	fw.Write(bloomFilterBytes, false, nil)
-	fmt.Printf("Bloom filter bytes record len: %v\n", len(bloomFilterBytes))
 	fw.Write(IntToBytes(int64(summaryStartOffset)), false, nil)
-	fmt.Printf("Summary start offset record len: %d\n", len(IntToBytes(int64(summaryStartOffset))))
 	fw.Write(IntToBytes(int64(numOfItems)), false, nil)
-	fmt.Printf("Number of items record len: %d\n", len(IntToBytes(int64(numOfItems))))
 	fw.Write(IntToBytes(int64(len(merkleTreeBytes))), false, nil)
-	fmt.Printf("Merkle tree bytes length: %d\n", len(IntToBytes(int64(len(merkleTreeBytes)))))
 	fw.Write(merkleTreeBytes, false, nil)
-	fmt.Printf("Merkle tree bytes record len: %v\n", len(merkleTreeBytes))
 	metadataLength := 8 + len(bloomFilterBytes) + 8 + 8 + 8 + len(merkleTreeBytes) + 8
 	fw.Write(nil, true, IntToBytes(int64(metadataLength)))
 

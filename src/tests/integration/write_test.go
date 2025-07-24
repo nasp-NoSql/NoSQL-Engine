@@ -11,6 +11,8 @@ import (
 	fw "nosqlEngine/src/service/file_writer"
 	"nosqlEngine/src/service/ss_parser"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 var CONFIG = config.GetConfig()
@@ -23,7 +25,7 @@ func TestWritePathIntegration(t *testing.T) {
 	// Setup block manager and file writer
 	bm := b.NewBlockManager()
 	blockSize := CONFIG.BlockSize
-	fileWriter := fw.NewFileWriter(*bm, blockSize)
+	fileWriter := fw.NewFileWriter(bm, blockSize, "sstable/sstable_"+uuid.New().String()+".db")
 	ssParser := ss_parser.NewSSParser(fileWriter)
 
 	// Create a set of key-value pairs
@@ -61,7 +63,9 @@ func TestWritePathIntegration(t *testing.T) {
 func TestWriteRead(t *testing.T) {
 	bm := b.NewBlockManager()
 	blockSize := CONFIG.BlockSize
-	fileWriter := fw.NewFileWriter(*bm, blockSize)
+	uuidStr := uuid.New().String()
+
+	fileWriter := fw.NewFileWriter(bm, blockSize, "sstable/sstable_"+uuidStr+".db")
 	ssParser := ss_parser.NewSSParser(fileWriter)
 
 	// Create a set of key-value pairs
