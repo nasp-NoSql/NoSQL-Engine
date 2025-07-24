@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"nosqlEngine/src/config"
 	"nosqlEngine/src/service/file_writer"
 	"os"
 	"path/filepath"
 	"time"
 )
+
+var CONFIG = config.GetConfig()
 
 // WALEntry represents a single log entry in the WAL
 // Operation: "PUT" or "DELETE"
@@ -41,10 +44,9 @@ func NewWAL() (*WAL, error) {
 	// if err != nil {
 	// 	return nil, err
 	// }
-	bufferSize := 100                              // default buffer size
-	segmentSize := 4096                            // default segment size in bytes
-	writer := file_writer.NewFileWriter(nil, nil)  // Create a new FileWriter with the segment size
-	writer.SetLocation("data/wal/current-wal.log") // Set the location for the FileWriter
+	bufferSize := 100                                                                 // default buffer size
+	segmentSize := 4096                                                               // default segment size in bytes
+	writer := file_writer.NewFileWriter(nil, CONFIG.BlockSize, "wal/current-wal.log") // Create a new FileWriter with the segment size
 	return &WAL{buffer: make([][]byte, 0, bufferSize), bufferSize: bufferSize, segmentSize: segmentSize, writer: writer}, nil
 }
 
@@ -156,7 +158,7 @@ func (w *WAL) Flush() error {
 	}
 	for _, entry := range w.buffer {
 		if w.writer != nil {
-			w.writer.Write(entry, false)
+			w.writer.Write(entry, false, nil)
 			// If the segment size is reached, archive the current WAL segment
 			size, err := getFileSize("data/wal/current-wal.log")
 			if err != nil {
@@ -212,6 +214,7 @@ func generateWALSegmentName() string {
 
 // Helper to read and parse a single WAL entry from the file
 func readWALEntry(r io.Reader) (*WALEntry, uint32, []byte, error) {
+	//vraca se ceo zapis wal-a bez paddinga ----> jedan log
 	head := make([]byte, 4+16+1+8+8) // CRC + Timestamp + Tombstone + KeySize + ValueSize
 	_, err := io.ReadFull(r, head)
 	if err != nil {
