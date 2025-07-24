@@ -40,13 +40,13 @@ func (ssParser *SSParserImpl) parseNextMem() {
 	bloom := bloom_filter.GetBloomFilterArray(key_value.GetKeys(data))
 	//_ = merkle_tree.GetMerkleTree(data)
 
-	keys, keyOffsets := SerializeDataGetOffsets(ssParser.fileWriter, data)
+	keys, offsets := SerializeDataGetOffsets(ssParser.fileWriter, data)
 	ssParser.fileWriter.Write(nil, true, nil) // Write end of section marker
 
-	indexOffsets := SerializeIndexGetOffsets(keys, keyOffsets, ssParser.fileWriter)
+	sumKeys, sumOffsets := SerializeIndexGetOffsets(keys, offsets, ssParser.fileWriter)
 	initialSummaryOffset := ssParser.fileWriter.Write(nil, true, nil)
 
-	SerializeSummary(keys, indexOffsets, ssParser.fileWriter)
+	SerializeSummary(sumKeys, sumOffsets, ssParser.fileWriter)
 
 	SerializeMetaData(ssParser.fileWriter.Write(nil, true, nil), bloom, make([]byte, 0), len(data), ssParser.fileWriter, initialSummaryOffset)
 	if len(ssParser.mems) != 0 {

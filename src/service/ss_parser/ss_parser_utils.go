@@ -10,34 +10,48 @@ import (
 var CONFIG = config.GetConfig()
 
 func SerializeDataGetOffsets(fw file_writer.FileWriterInterface, keyValues []key_value.KeyValue) ([]string, []int) {
-	keys := []string{}
-	offsets := []int{}
-	currBlockIndex := -1
+	keys := make([]string, len(keyValues))
+	offsets := make([]int, len(keyValues))
 	for i := 0; i < len(keyValues); i++ {
 		value := append(SizeAndValueToBytes(keyValues[i].GetKey()), SizeAndValueToBytes(keyValues[i].GetValue())...)
 		blockIndex := fw.Write(value, false, nil)
-		if currBlockIndex != blockIndex {
-			currBlockIndex = blockIndex
-			keys = append(keys, keyValues[i].GetKey())
-			offsets = append(offsets, currBlockIndex)
-		}
+		keys[i] = keyValues[i].GetKey()
+		offsets[i] = blockIndex
 	}
 	return keys, offsets
 }
 
-func SerializeIndexGetOffsets(keys []string, keyOffsets []int, fw file_writer.FileWriterInterface) []int {
-	blockIndex := []int{}
-	for i := 0; i < len(keys); i++ {
-		value := append(SizeAndValueToBytes(keys[i]), IntToBytes(int64(keyOffsets[i]))...)
-		currBlock := fw.Write(value, false, nil)
-		blockIndex = append(blockIndex, currBlock)
+func SerializeIndexGetOffsets(keys []string, offsets []int, fw file_writer.FileWriterInterface) ([]string, []int) {
+
+	elNum := len(keys) / CONFIG.SummaryStep
+	if len(keys)%CONFIG.SummaryStep != 0 {
+		elNum++
 	}
-	return blockIndex
+	if len(keys) < CONFIG.SummaryStep {
+		elNum = len(keys)
+	}
+	sumKeys := make([]string, 0, elNum)
+	sumOffsets := make([]int, 0, elNum)
+
+	for i := 0; i < len(keys); i++ {
+		key := keys[i]
+		offset := offsets[i]
+		value := append(SizeAndValueToBytes(key), IntToBytes(int64(offset))...)
+		currBlock := fw.Write(value, false, nil)
+		if i%CONFIG.SummaryStep == 0 {
+			sumKeys = append(sumKeys, key)
+			sumOffsets = append(sumOffsets, currBlock)
+		}
+
+	}
+	return sumKeys, sumOffsets
 }
 func SerializeSummary(keys []string, offsets []int, fw file_writer.FileWriterInterface) {
 
-	for i := 0; i < len(keys); i = i + CONFIG.SummaryStep {
-		value := append(SizeAndValueToBytes(keys[i]), IntToBytes(int64(offsets[i]))...)
+	for i := 0; i < len(keys); i++ {
+		key := keys[i]
+		offset := offsets[i]
+		value := append(SizeAndValueToBytes(key), IntToBytes(int64(offset))...)
 		fw.Write(value, false, nil)
 
 	}
