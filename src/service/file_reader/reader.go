@@ -54,7 +54,6 @@ func (fr *FileReader) Read(blockNum int) ([]byte, int, error) {
 	}
 
 	jumboFlag := block[len(block)-1]
-	fmt.Printf("Reading block %d, jumbo flag: %d\n", blockNum, jumboFlag)
 
 	switch jumboFlag {
 	case NonJumbo:
@@ -103,8 +102,6 @@ func (fr *FileReader) readJumboForward(startBlockNum int, initialFlag byte) ([]b
 		cleanData := fr.cleanBlockData(block)
 		jumboData = append(jumboData, cleanData...)
 
-		fmt.Printf("Read jumbo block %d with flag %d, data length: %d\n", currentBlockNum, jumboFlag, len(cleanData))
-
 		if jumboFlag == JumboEnd {
 			break // End of jumbo sequence
 		}
@@ -112,7 +109,7 @@ func (fr *FileReader) readJumboForward(startBlockNum int, initialFlag byte) ([]b
 		currentBlockNum--
 	}
 
-	return jumboData, readBlocks, nil
+	return jumboData, readBlocks + 1, nil
 }
 
 // readJumboBackward reads jumbo sequence in backward direction
@@ -138,8 +135,6 @@ func (fr *FileReader) readJumboBackward(startBlockNum int, initialFlag byte) ([]
 		cleanData := fr.cleanBlockData(block)
 		blocks = append(blocks, cleanData)
 
-		fmt.Printf("Read jumbo block %d with flag %d, data length: %d\n", currentBlockNum, jumboFlag, len(cleanData))
-
 		if jumboFlag == JumboStart {
 			break // End of jumbo sequence (start when reading backward)
 		}
@@ -152,7 +147,7 @@ func (fr *FileReader) readJumboBackward(startBlockNum int, initialFlag byte) ([]
 		jumboData = append(jumboData, blocks[i]...)
 	}
 
-	return jumboData, readBlocks, nil
+	return jumboData, readBlocks + 1, nil
 }
 
 // cleanBlockData removes the jumbo flag and padding, returning only the actual data
@@ -176,8 +171,6 @@ func (fr *FileReader) cleanBlockData(block []byte) []byte {
 
 	// Return only the data before the notation
 	cleanData := dataWithNotation[:notationIndex]
-	fmt.Printf("Cleaned block data: %d bytes (removed %d bytes of padding)\n",
-		len(cleanData), len(dataWithNotation)-notationIndex)
 
 	return cleanData
 }
@@ -228,4 +221,20 @@ func (fr *FileReader) GetLocation() string {
 // set location
 func (fr *FileReader) SetLocation(location string) {
 	fr.location = location
+}
+
+func (fr *FileReader) GetFileSize() int64 {
+	size, err := fr.block_manager.GetFileSize(fr.location)
+	if err != nil {
+		return 0
+	}
+	return size
+}
+
+func (fr *FileReader) GetFileSizeBlocks() (int, error) {
+	size, err := fr.block_manager.GetFileSizeBlocks(fr.location)
+	if err != nil {
+		return 0, err
+	}
+	return size, nil
 }

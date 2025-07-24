@@ -86,3 +86,22 @@ func (bm *BlockManager) ReadBlock(location string, blockNumber int, direction bo
 
 	return buf[:n], nil
 }
+
+func (bm *BlockManager) GetFileSize(location string) (int64, error) {
+	fileInfo, err := os.Stat(location)
+	if err != nil {
+		return 0, err
+	}
+	return fileInfo.Size(), nil
+}
+
+func (bm *BlockManager) GetFileSizeBlocks(location string) (int, error) {
+	size, err := bm.GetFileSize(location)
+	if err != nil {
+		return 0, err
+	}
+	if size == 0 {
+		return 0, nil
+	}
+	return int(size) / bm.block_size, nil
+}
