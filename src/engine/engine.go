@@ -23,6 +23,7 @@ type Engine struct {
 	wal            *wal.WAL
 	ss_parser      ss_parser.SSParser
 	ss_compacter   *ss_compacter.SSCompacterST
+	block_manager  *block_manager.BlockManager
 }
 
 func NewEngine() *Engine {
@@ -39,11 +40,12 @@ func NewEngine() *Engine {
 	}
 	uuidStr := uuid.New().String()
 	return &Engine{
-		userLimiter:  user_limiter.NewUserLimiter(),
-		memtables:    memtables,
-		ss_parser:    ss_parser.NewSSParser(file_writer.NewFileWriter(bm, CONFIG.BlockSize, "sstable/sstable_"+uuidStr+".db")),
-		ss_compacter: ss_compacter.NewSSCompacterST(),
-		wal:          wal,
+		userLimiter:   user_limiter.NewUserLimiter(),
+		memtables:     memtables,
+		ss_parser:     ss_parser.NewSSParser(file_writer.NewFileWriter(bm, CONFIG.BlockSize, "sstable/sstable_"+uuidStr+".db")),
+		ss_compacter:  ss_compacter.NewSSCompacterST(),
+		wal:           wal,
+		block_manager: bm,
 	}
 }
 func (engine *Engine) SetNextMemtable() {

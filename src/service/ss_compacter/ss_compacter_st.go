@@ -30,7 +30,7 @@ func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWrit
 		// metadata Nededde
 		totalItems = 0
 		readers[i] = &FileReader{location: table}
-		keyBytes[i] = readers[i].ReadNextVal()
+		keyBytes[i] = readers[i].ReadNextVal() // gets next entry (key size, key) || (<value size, value>)
 	}
 	keys := []string{}
 	blockOffsets := []int{}
@@ -41,7 +41,7 @@ func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWrit
 	for !areAllValuesZero(counts) {
 		minIndex := getMinValIndex(keyBytes)
 		removeDuplicateKeys(keyBytes, minIndex, readers)
-		valBytes := readers[minIndex].ReadNextVal()
+		valBytes := readers[minIndex].ReadNextVal() // gets next entry (key size, key) || (<value size, value>)
 		if string(valBytes) == CONFIG.Tombstone {
 			counts[minIndex]--
 			keyBytes[minIndex] = nil // Mark as used

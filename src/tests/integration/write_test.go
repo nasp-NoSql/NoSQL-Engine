@@ -72,7 +72,7 @@ func TestWriteRead(t *testing.T) {
 	keyValues := make([]key_value.KeyValue, 0, 10)
 	for i := 0; i < 10; i++ {
 		key := fmt.Sprintf("key%d", i+1)
-		value := fmt.Sprintf("valuejasfbkasdfblhjksdfjlkasdjnlfknjlfnjaklsdfnjlkasdfnjksdfnjkanjk%d", i+1)
+		value := fmt.Sprintf("value%d", i+1)
 		keyValues = append(keyValues, key_value.NewKeyValue(key, value))
 	}
 

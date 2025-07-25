@@ -29,6 +29,11 @@ func NewFileWriter(bm *block_manager.BlockManager, blockSize int, name string) *
 	}
 }
 
+func (fw *FileWriter) GenerateNewLocation(name string) string {
+	// Generate a new location for the file writer
+	return filepath.ToSlash(filepath.Join("../../../data/" + name))
+}
+
 func (fw *FileWriter) Write(data []byte, sectionEnd bool, size []byte) int {
 	if sectionEnd {
 		if len(size) > 0 {

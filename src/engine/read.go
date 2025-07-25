@@ -1,6 +1,11 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+	rw "nosqlEngine/src/service/file_reader"
+	r "nosqlEngine/src/service"
+
+)
 
 func (engine *Engine) Read(user string, key string) (string, error) {
 	// Read from memtables
@@ -14,8 +19,8 @@ func (engine *Engine) Read(user string, key string) (string, error) {
 		}
 	}
 	// Not found in memtables, read from SSTables
-	/*
-	
+	reader := rw.NewFileReader('', CONFIG.BlockSize, *engine.block_manager) // need to get random name
+	retriever := r.NewEntryRetriever(*reader)
 
-	*/
+	return retriever.RetrieveEntry(key)
 }

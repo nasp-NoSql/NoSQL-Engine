@@ -86,7 +86,7 @@ func (r *EntryRetriever) RetrieveEntry(key string) (bool, error) {
 			}
 			fmt.Printf("Found key %s at offset %d\n", key, offset)
 
-			dataOffset := int64(totalBlocks) - offset
+			dataOffset := int64(totalBlocks) - offset - 1
 			if offset == 0 {
 				dataOffset -= 1
 			}
