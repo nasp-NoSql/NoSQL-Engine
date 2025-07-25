@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"nosqlEngine/src/config"
+	"nosqlEngine/src/models/bloom_filter"
 	"nosqlEngine/src/service/file_reader"
 )
 
@@ -53,7 +54,7 @@ func (r *EntryRetriever) RetrieveEntry(key string) (bool, error) {
 	r.fileReader.SetDirection(false) // Set to read from back
 
 	//we have to retrieve summary data
-	md, err := r.deserializeMetadata()
+	md, err := r.deserializeMetadata(key)
 	if err != nil {
 		return false, fmt.Errorf("error deserializing metadata: %v", err)
 	}
@@ -128,7 +129,7 @@ func (metadata *Metadata) GetBloomFilter() []byte {
 	return metadata.bf_data
 }
 
-func (r *EntryRetriever) deserializeMetadata() (Metadata, error) {
+func (r *EntryRetriever) deserializeMetadata(key string) (Metadata, error) {
 
 	i := 0
 	initial, readBlocks, err := r.fileReader.ReadEntry(i)
@@ -168,15 +169,18 @@ func (r *EntryRetriever) deserializeMetadata() (Metadata, error) {
 
 	bf_data := completedBlocks[8 : 8+bf_size]
 
-	// b, err := bloom_filter.DeserializeFromByteArray(bf_data)
+	b, err := bloom_filter.DeserializeFromByteArray(bf_data)
 
-	// if err != nil {
-	// 	return fmt.Errorf("error deserializing bloom filter: %v", err)
-	// }
+	if err != nil {
+		return Metadata{}, fmt.Errorf("error deserializing bloom filter: %v", err)
+	}
 
-	// ex := b.Check(key)
+	ex := b.Check(key)
+	if !ex {
+		return Metadata{}, fmt.Errorf("key %s not found in bloom filter", key)
+	}
 
-	// fmt.Println("Bloom filter check result for key:", key, "is", ex)
+	fmt.Println("Bloom filter check result for key:", key, "is", ex)
 
 	sum_start_offset := bytesToInt(completedBlocks[8+bf_size : 16+bf_size])
 

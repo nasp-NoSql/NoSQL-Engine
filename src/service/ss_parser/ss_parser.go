@@ -1,6 +1,7 @@
 package ss_parser
 
 import (
+	"fmt"
 	"nosqlEngine/src/models/bloom_filter"
 	"nosqlEngine/src/models/key_value"
 	"nosqlEngine/src/service/file_writer"
@@ -37,7 +38,11 @@ func (ssParser *SSParserImpl) parseNextMem() {
 
 	key_value.SortByKeys(&data)
 
-	bloom := bloom_filter.GetBloomFilterArray(key_value.GetKeys(data))
+	filter := bloom_filter.NewBloomFilter()
+	filter.AddMultiple(key_value.GetKeys(data))
+
+	fmt.Printf("Bf bytearray: %v\n", filter.GetArray())
+
 	//_ = merkle_tree.GetMerkleTree(data)
 
 	keys, offsets := SerializeDataGetOffsets(ssParser.fileWriter, data)
@@ -47,8 +52,8 @@ func (ssParser *SSParserImpl) parseNextMem() {
 	initialSummaryOffset := ssParser.fileWriter.Write(nil, true, nil)
 
 	SerializeSummary(sumKeys, sumOffsets, ssParser.fileWriter)
-
-	SerializeMetaData(ssParser.fileWriter.Write(nil, true, nil), bloom, make([]byte, 0), len(data), ssParser.fileWriter, initialSummaryOffset)
+	bt_bf, _ := filter.SerializeToByteArray()
+	SerializeMetaData(ssParser.fileWriter.Write(nil, true, nil), bt_bf, make([]byte, 0), len(data), ssParser.fileWriter, initialSummaryOffset)
 	if len(ssParser.mems) != 0 {
 		ssParser.parseNextMem()
 	} else {
