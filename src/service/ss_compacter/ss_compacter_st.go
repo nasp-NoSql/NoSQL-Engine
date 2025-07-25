@@ -11,19 +11,6 @@ var CONFIG = config.GetConfig()
 
 type SSCompacterST struct {
 }
-type FileReader struct {
-	location string
-}
-
-func (fw *FileReader) ReadNextVal() []byte {
-	return []byte{0} // Mock implementation, replace with actual reading logic
-}
-func (fw *FileReader) Read(size int) []byte {
-	return make([]byte, size)
-}
-func (fw *FileReader) ReadMetaData() (int, []byte, []byte, int) {
-	return 0, make([]byte, 0), make([]byte, 0), 0 // Mock implementation, replace with actual reading logic
-}
 
 func NewSSCompacterST() *SSCompacterST {
 	return &SSCompacterST{}
@@ -75,7 +62,11 @@ func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWrit
 	}
 	fw.Write(nil, true, nil) // Write end of file marker
 
-	indexOffsets := ss_parser.SerializeIndexGetOffsets(keys, blockOffsets, fw)                                    // Write index offsets
-	ss_parser.SerializeSummary(keys, indexOffsets, fw)                                                            // Write summary
-	ss_parser.SerializeMetaData(fw.Write([]byte{}, true, nil), bloom.GetArray(), make([]byte, 0), totalItems, fw) // Write metadata
+	summaryKeys, summaryOffsets := ss_parser.SerializeIndexGetOffsets(keys, blockOffsets, fw) // Write index offsets
+	initialSummaryOffset := fw.Write(nil, true, nil)
+
+	ss_parser.SerializeSummary(summaryKeys, summaryOffsets, fw)
+
+	bt_bf, _ := bloom.SerializeToByteArray()                                                                            // Write summary
+	ss_parser.SerializeMetaData(fw.Write(nil, true, nil), bt_bf, make([]byte, 0), totalItems, fw, initialSummaryOffset) // Write metadata
 }

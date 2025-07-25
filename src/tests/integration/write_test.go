@@ -72,7 +72,7 @@ func TestWriteRead(t *testing.T) {
 	keyValues := make([]key_value.KeyValue, 0, 10)
 	for i := 0; i < 10; i++ {
 		key := fmt.Sprintf("key%d", i+1)
-		value := fmt.Sprintf("value%d", i+1)
+		value := fmt.Sprintf("valuejasfbkasdfblhjksdfjlkasdjnlfknjlfnjaklsdfnjlkasdfnjksdfnjkanjk%d", i+1)
 		keyValues = append(keyValues, key_value.NewKeyValue(key, value))
 	}
 
@@ -84,21 +84,18 @@ func TestWriteRead(t *testing.T) {
 
 	retriever := r.NewEntryRetriever(*reader)
 
-	err := retriever.RetrieveEntry("key1")
-	//fmt.Printf("Retrieved data: %v\n", retrievedData)
+	res, err := retriever.RetrieveEntry("key7")
 
-	/*retrieved data is of this tyep type Metadata struct {
-		bf_size       int64
-		bf_data       []byte
-		summary_start int64
-		summary_size  int64
-		numOfItems    int64
-		merkle_size   int64
-		merkle_data   []byte
-	}
-	*/
 	if err != nil {
-		t.Fatalf("Failed to retrieve entry: %v", err)
+		t.Fatalf("Failed to retrieve entry: %v for metadata: %v", err, res)
 	}
 
+	// fmt.Printf("Retrieved metadata: %v\n", metadata)
+	// fmt.Printf("Bloom Filter Size: %d\n", metadata.GetBloomFilterSize())
+	// fmt.Printf("Summary Start Offset: %d\n", metadata.GetSummaryStartOffset())
+	// fmt.Printf("Summary End Offset: %d\n", metadata.GetSummaryEndOffset())
+	// fmt.Printf("Number of Items: %d\n", metadata.GetNumOfItems())
+	// fmt.Printf("Merkle Size: %d\n", metadata.GetMerkleSize())
+	// fmt.Printf("Merkle Data: %v\n", metadata.GetMerkleData())
+	// fmt.Printf("Bloom Filter Data: %v\n", metadata.GetBloomFilter())
 }

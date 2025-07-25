@@ -40,7 +40,6 @@ func (fw *FileWriter) Write(data []byte, sectionEnd bool, size []byte) int {
 	}
 
 	if fw.IsJumbo(len(data)) {
-		fmt.Println("This is a jumbo entry, allocating multiple blocks!")
 		fw.WriteJumboData(data)
 		return fw.currentBlockNum
 	}
@@ -101,9 +100,6 @@ func (fw *FileWriter) WriteJumboData(data []byte) {
 	// Calculate number of blocks needed
 	numBlocks := (len(data) + availablePerBlock - 1) / availablePerBlock
 
-	fmt.Printf("Splitting %d bytes into %d blocks (availablePerBlock: %d)\n",
-		len(data), numBlocks, availablePerBlock)
-
 	dataOffset := 0
 	for i := 0; i < numBlocks; i++ {
 
@@ -114,7 +110,6 @@ func (fw *FileWriter) WriteJumboData(data []byte) {
 		}
 
 		wrData := data[dataOffset : dataOffset+chunkSize]
-		fmt.Printf("Kurac Writing chunk %d, size: %d bytes\n", wrData, chunkSize)
 		dataOffset += chunkSize
 
 		wrDataCopy := make([]byte, len(wrData))
@@ -150,11 +145,8 @@ func (fw *FileWriter) WriteJumboData(data []byte) {
 		// Add jumbo flag at the end
 		wrData = append(wrData, jumboFlag...)
 
-		fmt.Printf("Writing jumbo block %d/%d (%s) with size %d bytes, data chunk: %d bytes\n",
-			i+1, numBlocks, GetJumboFlagName(jumboFlag[2]), len(wrData), chunkSize)
 		fw.allDataWritten = append(fw.allDataWritten, wrData...)
 		err := fw.block_manager.WriteBlock(fw.location, fw.currentBlockNum, wrData)
-		fmt.Printf("JUMBO CONTENTS: %v\n", wrData)
 
 		if err != nil {
 			fmt.Printf("Error writing jumbo block %d: %v\n", fw.currentBlockNum, err)
@@ -191,8 +183,6 @@ func (fw *FileWriter) FlushCurrentBlock() {
 		// Add jumbo flag at the end
 		fw.currentBlock = append(fw.currentBlock, jumboFlag...)
 
-		fmt.Printf("Flushing block %d (%s) with size %d bytes\n", fw.currentBlockNum, GetJumboFlagName(jumboFlag[2]), len(fw.currentBlock))
-		fmt.Printf("Current block data: %v\n", fw.currentBlock)
 		fw.allDataWritten = append(fw.allDataWritten, fw.currentBlock...)
 		fw.block_manager.WriteBlock(fw.location, fw.currentBlockNum, fw.currentBlock)
 		fw.currentBlockNum++
@@ -203,7 +193,6 @@ func (fw *FileWriter) FlushCurrentBlock() {
 
 func (fw *FileWriter) FlushWithSize(size []byte) {
 	//this is the same flush bit instead of padding to the top, at the last 8bytes there is size var
-	fmt.Printf("FLUSH WITH SIZE: %v\n", size)
 
 	// Add jumbo flag (0 = not jumbo)
 	jumboFlag := make([]byte, 3)
