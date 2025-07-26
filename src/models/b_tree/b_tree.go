@@ -52,6 +52,12 @@ func (node *BTreeNode) search(key string) (string, bool) {
 }
 
 func (tree *BTree) Add(key, value string) {
+	// Check if key already exists (including tombstoned keys)
+	if tree.updateExistingKey(key, value) {
+		return
+	}
+
+	// Add new key
 	root := tree.Root
 	if len(root.Keys) == 2*tree.T-1 {
 		s := &BTreeNode{IsLeaf: false, Children: []*BTreeNode{root}}
@@ -61,6 +67,27 @@ func (tree *BTree) Add(key, value string) {
 	} else {
 		root.addNonFull(key, value, tree.T)
 	}
+	tree.Size++
+}
+
+// updateExistingKey updates an existing key (including tombstoned ones) and returns true if key was found
+func (tree *BTree) updateExistingKey(key, value string) bool {
+	return tree.Root.updateExistingKeyRecursive(key, value)
+}
+
+func (node *BTreeNode) updateExistingKeyRecursive(key, value string) bool {
+	i := 0
+	for i < len(node.Keys) && key > node.Keys[i] {
+		i++
+	}
+	if i < len(node.Keys) && key == node.Keys[i] {
+		node.Values[i] = value
+		return true
+	}
+	if !node.IsLeaf {
+		return node.Children[i].updateExistingKeyRecursive(key, value)
+	}
+	return false
 }
 
 func (node *BTreeNode) addNonFull(key, value string, t int) {
@@ -114,6 +141,10 @@ func (node *BTreeNode) splitChild(i, t int) {
 }
 
 // Remove sets the value of the key to "<TOMBSTONE!>" if found (logical removal)
+func (tree *BTree) Remove(key string) {
+	tree.Root.Remove(key)
+}
+
 func (node *BTreeNode) Remove(key string) {
 	i := 0
 	for i < len(node.Keys) && key > node.Keys[i] {

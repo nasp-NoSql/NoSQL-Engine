@@ -44,6 +44,7 @@ func NewFileReader(location string, blockSize int, bm block_manager.BlockManager
 func (fr *FileReader) Read(blockNum int) ([]byte, int, error) {
 	// Read the block
 	block, err := fr.block_manager.ReadBlock(fr.location, blockNum, fr.direction)
+	fmt.Print("Reading block number: ", blockNum, "\n")
 	if err != nil {
 		return nil, 0, err
 	}
@@ -72,7 +73,7 @@ func (fr *FileReader) Read(blockNum int) ([]byte, int, error) {
 // readJumboSequence reads all blocks in a jumbo sequence and returns the complete entry
 func (fr *FileReader) readJumboSequence(startBlockNum int, initialFlag byte) ([]byte, int, error) {
 	currentBlockNum := startBlockNum
-
+	fmt.Print("Reading jumbo sequence\n")
 	if fr.direction {
 		// Forward reading: Start -> Middle -> End
 		return fr.readJumboForward(currentBlockNum, initialFlag)
@@ -127,6 +128,7 @@ func (fr *FileReader) readJumboBackward(startBlockNum int, initialFlag byte) ([]
 	readBlocks := 0
 	for {
 		block, err := fr.block_manager.ReadBlock(fr.location, currentBlockNum, fr.direction)
+		fmt.Print("Reading JUMBO block CONTENTS: ", block, "\n")
 		if err != nil {
 			return nil, 0, err
 		}

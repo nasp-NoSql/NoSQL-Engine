@@ -40,3 +40,9 @@ func (hmap *HashMap) ToRaw() []key_value.KeyValue {
 	}
 	return ret
 }
+
+func (hmap *HashMap) Clear() bool {
+	hmap.data = make(map[string]string)
+	hmap.size = 0
+	return true
+}
