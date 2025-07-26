@@ -6,7 +6,6 @@ import (
 	"nosqlEngine/src/service/file_writer"
 )
 
-
 type SSParserImpl struct {
 	fileWriter file_writer.FileWriterInterface
 }
@@ -28,6 +27,6 @@ func (ssParser *SSParserImpl) FlushMemtable(data []key_value.KeyValue) {
 	initialSummaryOffset := ssParser.fileWriter.Write(nil, true, nil)
 
 	SerializeSummary(sumKeys, sumOffsets, ssParser.fileWriter)
-	bt_bf, _ := filter.SerializeToByteArray()
+	bt_bf := filter.GetArray()
 	SerializeMetaData(ssParser.fileWriter.Write(nil, true, nil), bt_bf, make([]byte, 0), len(data), ssParser.fileWriter, initialSummaryOffset)
 }

@@ -133,19 +133,21 @@ func (r *EntryRetriever) deserializeMetadata(key string) (Metadata, error) {
 
 	i := 0
 	initial, readBlocks, err := r.fileReader.ReadEntry(i)
+	fmt.Print("initial metadata block: ", initial, "\n")
 	if err != nil {
 		return Metadata{}, fmt.Errorf("error reading block %d: %v, READ %d blocks", i, err, readBlocks)
 	}
 	i += 1
 
 	mdSize := bytesToInt(initial[len(initial)-8:])
-
+	fmt.Printf("Metadata size: %d\n", mdSize)
 	numOfBlocks := mdSize / int64(CONFIG.BlockSize)
 	if mdSize%int64(CONFIG.BlockSize) != 0 {
 		numOfBlocks++
 	}
 
 	numOfBlocks = numOfBlocks + 1 // +1 for the initial metadata block
+	fmt.Printf("Number of blocks: %d\n", numOfBlocks)
 	if mdSize < int64(CONFIG.BlockSize) {
 		numOfBlocks = 0 // At least one block for metadata
 	}
@@ -164,9 +166,9 @@ func (r *EntryRetriever) deserializeMetadata(key string) (Metadata, error) {
 	}
 
 	completedBlocks = append(completedBlocks, initial...)
-
+	fmt.Print("Completed blocks: ", completedBlocks, "\n")
 	bf_size := bytesToInt(completedBlocks[:8])
-
+	fmt.Print("Bloom filter size: ", bf_size, "\n")
 	bf_data := completedBlocks[8 : 8+bf_size]
 
 	b, err := bloom_filter.DeserializeFromByteArray(bf_data)

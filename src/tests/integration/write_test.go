@@ -10,6 +10,7 @@ import (
 	rw "nosqlEngine/src/service/file_reader"
 	fw "nosqlEngine/src/service/file_writer"
 	"nosqlEngine/src/service/ss_parser"
+	m "nosqlEngine/src/storage/memtable"
 	"testing"
 
 	"github.com/google/uuid"
@@ -27,17 +28,19 @@ func TestWritePathIntegration(t *testing.T) {
 	blockSize := CONFIG.BlockSize
 	fileWriter := fw.NewFileWriter(bm, blockSize, "sstable/sstable_"+uuid.New().String()+".db")
 	ssParser := ss_parser.NewSSParser(fileWriter)
+	mt := m.NewMemtable()
 
 	// Create a set of key-value pairs
 	keyValues := make([]key_value.KeyValue, 0, 10)
 	for i := 0; i < 10; i++ {
 		key := fmt.Sprintf("key%d", i+1)
 		value := fmt.Sprintf("value%d", i+1)
+		mt.Add(key, value)
 		keyValues = append(keyValues, key_value.NewKeyValue(key, value))
 	}
 
 	// Write the memtable to disk via the parser and file writer
-	ssParser.AddMemtable(keyValues)
+	ssParser.FlushMemtable(mt.ToRaw())
 
 	// Read the file to verify the data
 	data, err := bm.ReadBlock(fileWriter.GetLocation(), 0, true)
@@ -61,6 +64,7 @@ func TestWritePathIntegration(t *testing.T) {
 }
 
 func TestWriteRead(t *testing.T) {
+	mt := m.NewMemtable()
 	bm := b.NewBlockManager()
 	blockSize := CONFIG.BlockSize
 	uuidStr := uuid.New().String()
@@ -73,11 +77,13 @@ func TestWriteRead(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		key := fmt.Sprintf("key%d", i+1)
 		value := fmt.Sprintf("value%d", i+1)
+		mt.Add(key, value)
+
 		keyValues = append(keyValues, key_value.NewKeyValue(key, value))
 	}
 
 	// Write the memtable to disk via the parser and file writer
-	ssParser.AddMemtable(keyValues)
+	ssParser.FlushMemtable(mt.ToRaw())
 	fmt.Print(
 		"File written successfully, now reading the data back...\n")
 	reader := rw.NewFileReader(fileWriter.GetLocation(), blockSize, *bm)

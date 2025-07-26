@@ -66,7 +66,7 @@ func SerializeMetaData(summaryStartOffset int, bloomFilterBytes []byte, merkleTr
 	fw.Write(IntToBytes(int64(numOfItems)), false, nil)
 	fw.Write(IntToBytes(int64(len(merkleTreeBytes))), false, nil)
 	fw.Write(merkleTreeBytes, false, nil)
-	metadataLength := 8 + len(bloomFilterBytes) + 8 + 8 + 8 + len(merkleTreeBytes) + 8 + 8
+	metadataLength := 8 + len(bloomFilterBytes) + 8 + 8 + 8 + len(merkleTreeBytes) + 8
 	fw.Write(nil, true, IntToBytes(int64(metadataLength)))
 
 }
