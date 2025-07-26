@@ -6,6 +6,7 @@ import (
 	"nosqlEngine/src/models/bloom_filter"
 	"nosqlEngine/src/service/file_writer"
 	"nosqlEngine/src/service/ss_parser"
+	"nosqlEngine/src/service/ss_retreiver"
 	"os"
 	"path/filepath"
 	"strings"
@@ -50,17 +51,16 @@ func (sc *SSCompacterST) CheckCompactionConditions() bool {
 	return compacted
 }
 
-
 func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWriter) {
-	counts := make([]int, len(tables))          // holds the number of items in each table
-	readers := make([]*FileReader, len(tables)) // holds the file readers for each table
-	keyBytes := make([][]byte, len(tables))     // holds the values read from each table
-	totalItems := 0                             // total number of items across all tables
-	for i, table := range tables {
+	counts := make([]int, len(tables)) // holds the number of items in each table
+	keyBytes := make([][]byte, len(tables))
+	pool := ss_retreiver.NewEntryRetrieverPool(tables) // holds the values read from each table
+	totalItems := 0                                    // total number of items across all tables
+	for i := range tables {
 		// metadata Nededde
 		totalItems = 0
-		readers[i] = &FileReader{location: table}
-		keyBytes[i] = readers[i].ReadNextVal() // gets next entry (key size, key) || (<value size, value>)
+
+		keyBytes[i] = pool.ReadNextVal(i) // gets next entry (key size, key) || (<value size, value>)
 	}
 	keys := []string{}
 	blockOffsets := []int{}
@@ -71,7 +71,7 @@ func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWrit
 	for !areAllValuesZero(counts) {
 		minIndex := getMinValIndex(keyBytes)
 		removeDuplicateKeys(keyBytes, minIndex, readers)
-		valBytes := readers[minIndex].ReadNextVal() // gets next entry (key size, key) || (<value size, value>)
+		valBytes := pool.ReadNextVal(minIndex) // gets next entry (key size, key) || (<value size, value>)
 		if string(valBytes) == CONFIG.Tombstone {
 			counts[minIndex]--
 			keyBytes[minIndex] = nil // Mark as used

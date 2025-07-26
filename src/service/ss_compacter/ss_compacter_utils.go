@@ -7,7 +7,7 @@ func updateValsAndCounts(vals [][]byte, counts []int, readers []*FileReader) {
 			continue
 		}
 		if vals[i] == nil {
-			vals[i] = readers[i].ReadNextVal() // gets next entry (key size, key) || (<value size, value>)
+			vals[i] = readers[i].ReadNextVal() // gets next entry (key size, key) || (<value size, value>)f
 			counts[i]--
 		}
 	}
@@ -43,4 +43,3 @@ func areAllValuesZero(values []int) bool {
 	}
 	return true
 }
-

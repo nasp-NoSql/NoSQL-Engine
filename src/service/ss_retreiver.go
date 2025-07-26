@@ -5,11 +5,28 @@ import (
 	"fmt"
 	"nosqlEngine/src/config"
 	"nosqlEngine/src/models/bloom_filter"
+	"nosqlEngine/src/service/block_manager"
 	"nosqlEngine/src/service/file_reader"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
 type EntryRetriever struct {
-	fileReader file_reader.FileReader
+	fileReader   file_reader.FileReader
+	sstablePaths []string
+	currentIndex int
+}
+
+type EntryRetrieverPool struct {
+	fileReaders    []file_reader.FileReader
+	sstablePaths   []string
+	currentIndex   int
+	metadata       []Metadata
+	readCounters   []int64  // Track read values per reader
+	currentBlocks  []int64  // Current block index for each reader
+	blockPositions []int    // Current position within block for each reader
+	cachedBlocks   [][]byte // Cached cleaned block data for each reader
 }
 
 type Metadata struct {
@@ -23,9 +40,7 @@ type Metadata struct {
 }
 
 type Block struct {
-	size        int64
-	data        []byte
-	jumboBuffer []byte
+	// Placeholder struct - can be removed if not needed
 }
 
 type KeyOffset struct {
@@ -47,61 +62,223 @@ func bytesToInt(buf []byte) int64 {
 	return int64(binary.BigEndian.Uint64(buf))
 
 }
-func NewEntryRetriever(fileReader file_reader.FileReader) *EntryRetriever {
-	return &EntryRetriever{fileReader: fileReader}
+func NewEntryRetriever(bm *block_manager.BlockManager) *EntryRetriever {
+	// Initialize SSTable pool by scanning for sstable files
+	sstablePaths := initializeSSTablePool()
+
+	// Create a single block manager and file reader instance
+	var fileReader file_reader.FileReader
+
+	if len(sstablePaths) > 0 {
+		// Initialize with the first SSTable if available
+		fileReader = *file_reader.NewFileReader(sstablePaths[0], CONFIG.BlockSize, *bm)
+	} else {
+		// Initialize with empty path if no SSTables found
+		fileReader = *file_reader.NewFileReader("", CONFIG.BlockSize, *bm)
+	}
+
+	return &EntryRetriever{
+		fileReader:   fileReader,
+		sstablePaths: sstablePaths,
+		currentIndex: 0,
+	}
 }
-func (r *EntryRetriever) RetrieveEntry(key string) (bool, error) {
-	r.fileReader.SetDirection(false) // Set to read from back
 
-	//we have to retrieve summary data
-	md, err := r.deserializeMetadata(key)
-	if err != nil {
-		return false, fmt.Errorf("error deserializing metadata: %v", err)
+func NewEntryRetrieverPool(bm *block_manager.BlockManager) *EntryRetrieverPool {
+	sstablePaths := initializeSSTablePool()
+
+	fileReaders := make([]file_reader.FileReader, len(sstablePaths))
+	readersPerMetadata := make([]Metadata, len(sstablePaths))
+	readCounters := make([]int64, len(sstablePaths))
+	currentBlocks := make([]int64, len(sstablePaths))
+	blockPositions := make([]int, len(sstablePaths))
+	cachedBlocks := make([][]byte, len(sstablePaths))
+
+	for i, sstablePath := range sstablePaths {
+		fileReaders[i] = *file_reader.NewFileReader(sstablePath, CONFIG.BlockSize, *bm)
+		md, err := deserializeMetadataOnly(fileReaders[i])
+		if err != nil {
+			fmt.Printf("Error deserializing metadata for %s: %v\n", sstablePath, err)
+			readersPerMetadata[i] = Metadata{}
+		} else {
+			readersPerMetadata[i] = md
+		}
+		readCounters[i] = 0 // Initialize read counter
+
+		// Initialize reading state - start from the beginning of data section
+		totalBlocks, _ := fileReaders[i].GetFileSizeBlocks()
+		currentBlocks[i] = int64(totalBlocks) - readersPerMetadata[i].summary_start // Start after summary
+		blockPositions[i] = 0                                                       // Start at beginning of block
+		cachedBlocks[i] = nil                                                       // No cached block initially
 	}
 
-	// Deserialize summary data
-	sumArray, errSum := r.deserializeSummary(md)
-	if errSum != nil {
-		return false, fmt.Errorf("error deserializing summary: %v", errSum)
+	return &EntryRetrieverPool{
+		fileReaders:    fileReaders,
+		sstablePaths:   sstablePaths,
+		currentIndex:   0,
+		metadata:       readersPerMetadata,
+		readCounters:   readCounters,
+		currentBlocks:  currentBlocks,
+		blockPositions: blockPositions,
+		cachedBlocks:   cachedBlocks,
+	}
+}
+
+func (r *EntryRetrieverPool) ReadNextVal(readerIndex int) (string, string, bool, error) {
+	if readerIndex < 0 || readerIndex >= len(r.fileReaders) {
+		return "", "", false, fmt.Errorf("reader index %d out of range [0, %d)", readerIndex, len(r.fileReaders))
 	}
 
-	// Take each pair from the summary and check if the key is between those 2 or not
-	for i := 0; i < len(sumArray)-1; i++ {
-		if key >= sumArray[i].getKey() && key <= sumArray[i+1].getKey() {
-			fmt.Printf("Key %s is between %s and %s\n", key, sumArray[i].getKey(), sumArray[i+1].getKey())
-			// Key found, read the entry from the file
-			//search the offsets
-			//ending offset is sumArray[i].getOffset()
-			//starting offset is sumArray[i+1].getOffset()
-			totalBlocks, _ := r.fileReader.GetFileSizeBlocks()
-			endOffset := sumArray[i].getOffset()
-			endOffset = int64(totalBlocks) - endOffset
-			startOffset := sumArray[i+1].getOffset()
-			startOffset = int64(totalBlocks) - startOffset
-			fmt.Printf("Total blocks: %d, end: %d, start offset: %d\n", totalBlocks, endOffset, startOffset)
+	// Check if we've reached the limit for this reader
+	if r.readCounters[readerIndex] >= r.metadata[readerIndex].GetNumOfItems() {
+		return "", "", true, nil // Return flag indicating limit reached
+	}
 
-			offset, err := r.searchIndex(startOffset, endOffset, key)
-			if err != nil {
-				return false, fmt.Errorf("error searching index: %v", err)
-			}
-			fmt.Printf("Found key %s at offset %d\n", key, offset)
-
-			dataOffset := int64(totalBlocks) - offset - 1
-			if offset == 0 {
-				dataOffset -= 1
-			}
-			fmt.Printf("Total blocks: %d, Offset: %d, Data offset: %d\n", totalBlocks, offset, dataOffset)
-			value, dataErr := r.searchData(dataOffset, key)
-			if dataErr != nil {
-				return false, fmt.Errorf("error searching data: %v", dataErr)
-			}
-			fmt.Printf("Retrieved value for key %s: %s\n", key, value)
-			return true, nil // Found the key, return the value
-			// Now read the entry at the found offset
+	// Check if we need to load a new block
+	if r.cachedBlocks[readerIndex] == nil || r.blockPositions[readerIndex] >= len(r.cachedBlocks[readerIndex]) {
+		err := r.loadNextBlock(readerIndex)
+		if err != nil {
+			return "", "", false, fmt.Errorf("error loading next block: %v", err)
 		}
 	}
 
-	return true, nil
+	// Read the next entry from the cached block
+	key, value, bytesRead, err := readDataEntry(r.cachedBlocks[readerIndex][r.blockPositions[readerIndex]:])
+	if err != nil {
+		return "", "", false, fmt.Errorf("error reading data entry: %v", err)
+	}
+
+	// Update position and counter
+	r.blockPositions[readerIndex] += bytesRead
+	r.readCounters[readerIndex]++
+
+	return key, value, false, nil
+}
+
+func (r *EntryRetrieverPool) loadNextBlock(readerIndex int) error {
+	reader := r.fileReaders[readerIndex]
+
+	// Read the block at current position
+	data, readBlocks, err := reader.ReadEntry(int(r.currentBlocks[readerIndex]))
+	if err != nil {
+		return fmt.Errorf("error reading block %d: %v", r.currentBlocks[readerIndex], err)
+	}
+
+	// TODO: Clean the block data (remove <!> markers, handle jumbo blocks, etc.)
+	// For now, just cache the raw data
+	r.cachedBlocks[readerIndex] = data
+	r.blockPositions[readerIndex] = 0
+	r.currentBlocks[readerIndex] += int64(readBlocks)
+
+	return nil
+}
+
+func initializeSSTablePool() []string {
+	var sstablePaths []string
+
+	sstableDir := `..\..\..\data\sstable`
+
+	files, err := os.ReadDir(sstableDir)
+	sstablePaths = make([]string, 0, len(files))
+	if err != nil {
+		fmt.Printf("Error scanning SSTable directory %s: %v\n", sstableDir, err)
+		return []string{}
+	}
+
+	for _, file := range files {
+		if strings.HasSuffix(file.Name(), ".db") && strings.Contains(file.Name(), "sstable_") {
+			sstablePaths = append(sstablePaths, filepath.Join(sstableDir, file.Name()))
+		}
+	}
+
+	fmt.Printf("Found %d SSTable files in %s: %v\n", len(sstablePaths), sstableDir, sstablePaths)
+	return sstablePaths
+}
+
+func (r *EntryRetriever) resetToNextSSTable() bool {
+	r.currentIndex++
+	if r.currentIndex >= len(r.sstablePaths) {
+		return false // No more SSTables to check
+	}
+
+	r.fileReader.ResetReader(r.sstablePaths[r.currentIndex], false)
+	fmt.Printf("Switched to SSTable: %s\n", r.sstablePaths[r.currentIndex])
+	return true
+}
+
+func (r *EntryRetriever) RetrieveEntry(key string) (bool, error) {
+	if len(r.sstablePaths) == 0 {
+		return false, fmt.Errorf("no SSTable files found")
+	}
+
+	r.currentIndex = 0
+	r.fileReader.ResetReader(r.sstablePaths[r.currentIndex], false)
+
+	for {
+		fmt.Printf("Searching in SSTable: %s\n", r.sstablePaths[r.currentIndex])
+		r.fileReader.SetDirection(false)
+
+		md, err := r.deserializeMetadata(key)
+		if err != nil {
+			fmt.Printf("Error deserializing metadata in %s: %v\n", r.sstablePaths[r.currentIndex], err)
+			if !r.resetToNextSSTable() {
+				return false, fmt.Errorf("key %s not found in any SSTable", key)
+			}
+			continue
+		}
+
+		sumArray, errSum := r.deserializeSummary(md)
+		if errSum != nil {
+			fmt.Printf("Error deserializing summary in %s: %v\n", r.sstablePaths[r.currentIndex], errSum)
+			if !r.resetToNextSSTable() {
+				return false, fmt.Errorf("key %s not found in any SSTable", key)
+			}
+			continue
+		}
+
+		found := false
+		for i := 0; i < len(sumArray)-1; i++ {
+			if key >= sumArray[i].getKey() && key <= sumArray[i+1].getKey() {
+				found = true
+				// Key found, read the entry from the file
+				//search the offsets
+				//ending offset is sumArray[i].getOffset()
+				//starting offset is sumArray[i+1].getOffset()
+				totalBlocks, _ := r.fileReader.GetFileSizeBlocks()
+				endOffset := sumArray[i].getOffset()
+				endOffset = int64(totalBlocks) - endOffset
+				startOffset := sumArray[i+1].getOffset() + 1
+				startOffset = int64(totalBlocks) - startOffset
+
+				offset, err := r.searchIndex(startOffset, endOffset, key)
+				if err != nil {
+					fmt.Printf("Error searching index in %s: %v\n", r.sstablePaths[r.currentIndex], err)
+					break // Break inner loop, try next SSTable
+				}
+
+				dataOffset := int64(totalBlocks) - offset - 1
+				if offset == 0 {
+					dataOffset -= 1
+				}
+				value, dataErr := r.searchData(dataOffset, key)
+				if dataErr != nil {
+					fmt.Printf("Error searching data in %s: %v\n", r.sstablePaths[r.currentIndex], dataErr)
+					break // Break inner loop, try next SSTable
+				}
+				fmt.Printf("Retrieved value for key %s: %s from %s\n", key, value, r.sstablePaths[r.currentIndex])
+				return true, nil // Found the key, return the value
+			}
+		}
+
+		if !found {
+			fmt.Printf("Key %s not found in range in %s\n", key, r.sstablePaths[r.currentIndex])
+		}
+
+		// Try next SSTable
+		if !r.resetToNextSSTable() {
+			return false, fmt.Errorf("key %s not found in any SSTable", key)
+		}
+	}
 }
 
 func (metadata *Metadata) GetBloomFilterSize() int64 {
@@ -133,7 +310,6 @@ func (r *EntryRetriever) deserializeMetadata(key string) (Metadata, error) {
 
 	i := 0
 	initial, readBlocks, err := r.fileReader.ReadEntry(i)
-	fmt.Print("initial metadata block: ", initial, "\n")
 	if err != nil {
 		return Metadata{}, fmt.Errorf("error reading block %d: %v, READ %d blocks", i, err, readBlocks)
 	}
@@ -141,13 +317,11 @@ func (r *EntryRetriever) deserializeMetadata(key string) (Metadata, error) {
 
 	mdOffset := bytesToInt(initial[len(initial)-8:])
 
-	fmt.Print("Metadata starting offset: ", mdOffset, "\n")
 	totalBlocks, err := r.fileReader.GetFileSizeBlocks()
 	if err != nil {
 		return Metadata{}, fmt.Errorf("error getting file size blocks: %v", err)
 	}
 	numOfBlocks := int64(totalBlocks) - mdOffset
-	fmt.Printf("Total blocks: %d, Metadata offset: %d, Number of blocks: %d\n", totalBlocks, mdOffset, numOfBlocks)
 	completedBlocks := make([]byte, 0, int(numOfBlocks)*CONFIG.BlockSize)
 	completedBlocks = append(completedBlocks, initial...)
 	for i < int(numOfBlocks) {
@@ -163,9 +337,7 @@ func (r *EntryRetriever) deserializeMetadata(key string) (Metadata, error) {
 	}
 
 	completedBlocks = append(completedBlocks, initial...)
-	fmt.Print("Completed blocks: ", completedBlocks, "\n")
 	bf_size := bytesToInt(completedBlocks[:8])
-	fmt.Print("Bloom filter size: ", bf_size, "\n")
 	bf_data := completedBlocks[8 : 8+bf_size]
 
 	b, err := bloom_filter.DeserializeFromByteArray(bf_data)
@@ -178,8 +350,6 @@ func (r *EntryRetriever) deserializeMetadata(key string) (Metadata, error) {
 	if !ex {
 		return Metadata{}, fmt.Errorf("key %s not found in bloom filter", key)
 	}
-
-	fmt.Println("Bloom filter check result for key:", key, "is", ex)
 
 	sum_start_offset := bytesToInt(completedBlocks[8+bf_size : 16+bf_size])
 
@@ -206,7 +376,6 @@ func (r *EntryRetriever) deserializeMetadata(key string) (Metadata, error) {
 		merkle_data:   merkle_data,
 	}
 
-	fmt.Printf("Retrieved metadata: %+v\n", md)
 	return md, nil
 }
 
@@ -218,7 +387,6 @@ func (r *EntryRetriever) deserializeSummary(metadata Metadata) ([]KeyOffset, err
 		offsetInBlock := 0
 
 		data, readBlocks, err := r.fileReader.ReadEntry(int(i))
-		fmt.Printf("Reading summary block %d with len %d\n", i, len(data))
 		//this is one summary block which can contain multiple entries
 		if err != nil {
 			return nil, err
@@ -232,12 +400,10 @@ func (r *EntryRetriever) deserializeSummary(metadata Metadata) ([]KeyOffset, err
 				return nil, fmt.Errorf("error reading summary entry: %v", errorSum)
 			}
 
-			fmt.Printf("Retrieved summary block %d data: %s, offset: %d,\n", i, val, offset)
 		}
 		sortedSummaryArray = append(subArray, sortedSummaryArray...)
 		i += int64(readBlocks)
 	}
-	fmt.Printf("Sorted summary array: %+v\n", sortedSummaryArray)
 	return sortedSummaryArray, nil
 }
 
@@ -257,15 +423,12 @@ func readSummaryIndexEntry(data []byte) (string, int64, int, error) {
 }
 
 func (r *EntryRetriever) searchIndex(start int64, end int64, key string) (int64, error) {
-	fmt.Printf("Searching index from %d to %d for key %s\n", start, end, key)
 	if start == end {
 		start = start - 1
 	}
 	i := start
 	for i < end {
 		data, readBlocks, err := r.fileReader.ReadEntry(int(i))
-		fmt.Printf("Reading index block %d with len %d\n", i, len(data))
-		fmt.Printf("Data in index block %d: %s\n", i, data)
 		if err != nil {
 			return 0, fmt.Errorf("error reading block %d: %v", i, err)
 		}
@@ -273,12 +436,13 @@ func (r *EntryRetriever) searchIndex(start int64, end int64, key string) (int64,
 		offsetInBlock := 0
 		for offsetInBlock < len(data) {
 			val, offset, off, err := readSummaryIndexEntry(data[offsetInBlock:])
-			offsetInBlock += off
 			if err != nil {
 				return 0, fmt.Errorf("error reading summary entry: %v", err)
 			}
+			fmt.Print("Val: ", val, " Offset: ", offset, "\n")
+			offsetInBlock += off
 			if val == key {
-				return offset, nil // Found the key, return the offset
+				return offset, nil
 			}
 		}
 		i += int64(readBlocks)
@@ -290,17 +454,19 @@ func (r *EntryRetriever) searchIndex(start int64, end int64, key string) (int64,
 
 func (r *EntryRetriever) searchData(offset int64, key string) (string, error) {
 	data, _, err := r.fileReader.ReadEntry(int(offset))
-	fmt.Printf("BLOCK %d: %s\n", offset, data)
 	if err != nil {
 		return "", fmt.Errorf("error reading data at offset %d: %v", offset, err)
 	}
 	offsetInBlock := 0
 	for offsetInBlock < len(data) {
+
 		keyRetrieved, value, off, err := readDataEntry(data[offsetInBlock:])
+		fmt.Print("Key Retrieved: ", keyRetrieved, " Value: ", value, "\n")
 		offsetInBlock += off
 		if err != nil {
 			return "", fmt.Errorf("error reading summary entry: %v", err)
 		}
+		fmt.Print("checking if key matches: ", len(keyRetrieved), " with key: ", len(key), "\n")
 		if keyRetrieved == key {
 			return value, nil // Found the key, return the offset
 		}
@@ -323,4 +489,71 @@ func readDataEntry(data []byte) (string, string, int, error) {
 	value := data[16+keySize : 16+keySize+valueSize]
 	off += int(valueSize)
 	return string(key), string(value), off, nil
+}
+
+func deserializeMetadataOnly(reader file_reader.FileReader) (Metadata, error) {
+	i := 0
+	initial, readBlocks, err := reader.ReadEntry(i)
+	if err != nil {
+		return Metadata{}, fmt.Errorf("error reading block %d: %v, READ %d blocks", i, err, readBlocks)
+	}
+	i += 1
+
+	mdOffset := bytesToInt(initial[len(initial)-8:])
+
+	totalBlocks, err := reader.GetFileSizeBlocks()
+	if err != nil {
+		return Metadata{}, fmt.Errorf("error getting file size blocks: %v", err)
+	}
+	numOfBlocks := int64(totalBlocks) - mdOffset
+	completedBlocks := make([]byte, 0, int(numOfBlocks)*CONFIG.BlockSize)
+	completedBlocks = append(completedBlocks, initial...)
+	for i < int(numOfBlocks) {
+		block, readBlocks, err := reader.ReadEntry(i)
+		if err != nil {
+			return Metadata{}, fmt.Errorf("error reading block %d: %v", i, err)
+		}
+		completedBlocks = append(block, completedBlocks...)
+		if readBlocks == int(numOfBlocks) {
+			break
+		}
+		i += int(readBlocks)
+	}
+
+	completedBlocks = append(completedBlocks, initial...)
+	bf_size := bytesToInt(completedBlocks[:8])
+	bf_data := completedBlocks[8 : 8+bf_size]
+
+	sum_start_offset := bytesToInt(completedBlocks[8+bf_size : 16+bf_size])
+
+	sum_end_offset := bytesToInt(completedBlocks[16+bf_size : 24+bf_size])
+	blocksInFile, err := reader.GetFileSizeBlocks()
+	if err != nil {
+		return Metadata{}, fmt.Errorf("error getting file size blocks: %v", err)
+	}
+	sum_start_offset = int64(blocksInFile) - sum_start_offset
+	sum_end_offset = int64(blocksInFile) - sum_end_offset
+
+	numOfItems := bytesToInt(completedBlocks[24+bf_size : 32+bf_size])
+
+	merkle_size := bytesToInt(completedBlocks[32+bf_size : 40+bf_size])
+	merkle_data := completedBlocks[40+bf_size : 40+bf_size+merkle_size]
+
+	md := Metadata{
+		bf_size:       bf_size,
+		bf_data:       bf_data,
+		summary_start: sum_start_offset,
+		summary_end:   sum_end_offset,
+		numOfItems:    numOfItems,
+		merkle_size:   merkle_size,
+		merkle_data:   merkle_data,
+	}
+
+	return md, nil
+}
+
+func loadDataEntry(reader file_reader.FileReader) (int64, string) {
+	// TODO: Implement this function based on your requirements
+	// This should load the next data entry from the reader
+	return 0, ""
 }

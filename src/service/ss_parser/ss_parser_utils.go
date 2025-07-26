@@ -37,13 +37,14 @@ func SerializeIndexGetOffsets(keys []string, offsets []int, fw file_writer.FileW
 	for i := 0; i < len(keys); i++ {
 		key := keys[i]
 		offset := offsets[i]
+		fmt.Print("SERIALIZING INDEX: ", key, " at offset: ", offset, "\n")
 		value := append(SizeAndValueToBytes(key), IntToBytes(int64(offset))...)
 		currBlock := fw.Write(value, false, nil)
-		if i%CONFIG.SummaryStep == 0 {
+
+		if i == 0 || i == len(keys)-1 || i%CONFIG.SummaryStep == 0 {
 			sumKeys = append(sumKeys, key)
 			sumOffsets = append(sumOffsets, currBlock)
 		}
-
 	}
 	return sumKeys, sumOffsets
 }
@@ -60,22 +61,14 @@ func SerializeSummary(keys []string, offsets []int, fw file_writer.FileWriterInt
 }
 
 func SerializeMetaData(summaryStartOffset int, bloomFilterBytes []byte, merkleTreeBytes []byte, numOfItems int, fw file_writer.FileWriterInterface, SummaryEndOffset int) {
-	fmt.Print("Serializing bf_size\n")
 	starting_offset := fw.Write(IntToBytes(int64(len(bloomFilterBytes))), false, nil)
-	fmt.Print("Serializing bf\n")
 	fw.Write(bloomFilterBytes, false, nil)
-	fmt.Print("serializing sum start offset\n")
 	fw.Write(IntToBytes(int64(summaryStartOffset)), false, nil)
-	fmt.Print("serializing sum end offset\n")
 	fw.Write(IntToBytes(int64(SummaryEndOffset)), false, nil)
-	fmt.Print("serializing num of items\n")
 	fw.Write(IntToBytes(int64(numOfItems)), false, nil)
-	fmt.Print("serializing merkle tree size\n")
 	fw.Write(IntToBytes(int64(len(merkleTreeBytes))), false, nil)
-	fmt.Print("Serializing merkle tree\n")
 	fw.Write(merkleTreeBytes, false, nil)
 	fw.Write(nil, true, IntToBytes(int64(starting_offset)))
-
 }
 
 func IntToBytes(n int64) []byte {

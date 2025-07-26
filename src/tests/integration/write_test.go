@@ -6,7 +6,6 @@ import (
 	"nosqlEngine/src/config"
 	r "nosqlEngine/src/service"
 	b "nosqlEngine/src/service/block_manager"
-	rw "nosqlEngine/src/service/file_reader"
 	fw "nosqlEngine/src/service/file_writer"
 	"nosqlEngine/src/service/ss_parser"
 	m "nosqlEngine/src/storage/memtable"
@@ -72,6 +71,7 @@ func TestWriteRead(t *testing.T) {
 	// Create a set of key-value pairs
 	for i := 0; i < 1000; i++ {
 		key := fmt.Sprintf("key%d", i+1)
+
 		value := fmt.Sprintf("value%d", i+1)
 		mt.Add(key, value)
 
@@ -81,22 +81,13 @@ func TestWriteRead(t *testing.T) {
 	ssParser.FlushMemtable(mt.ToRaw())
 	fmt.Print(
 		"File written successfully, now reading the data back...\n")
-	reader := rw.NewFileReader(fileWriter.GetLocation(), blockSize, *bm)
 
-	retriever := r.NewEntryRetriever(*reader)
+	retriever := r.NewEntryRetriever(bm)
 
-	res, err := retriever.RetrieveEntry("key1001")
+	res, err := retriever.RetrieveEntry("key167")
 
 	if err != nil {
 		t.Fatalf("Failed to retrieve entry: %v for metadata: %v", err, res)
 	}
 
-	// fmt.Printf("Retrieved metadata: %v\n", metadata)
-	// fmt.Printf("Bloom Filter Size: %d\n", metadata.GetBloomFilterSize())
-	// fmt.Printf("Summary Start Offset: %d\n", metadata.GetSummaryStartOffset())
-	// fmt.Printf("Summary End Offset: %d\n", metadata.GetSummaryEndOffset())
-	// fmt.Printf("Number of Items: %d\n", metadata.GetNumOfItems())
-	// fmt.Printf("Merkle Size: %d\n", metadata.GetMerkleSize())
-	// fmt.Printf("Merkle Data: %v\n", metadata.GetMerkleData())
-	// fmt.Printf("Bloom Filter Data: %v\n", metadata.GetBloomFilter())
 }

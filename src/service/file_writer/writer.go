@@ -151,7 +151,6 @@ func (fw *FileWriter) WriteJumboData(data []byte) {
 		wrData = append(wrData, jumboFlag...)
 
 		fw.allDataWritten = append(fw.allDataWritten, wrData...)
-		fmt.Print("Writing jumbo block number: ", fw.currentBlockNum, " with data: ", wrData, "\n")
 		err := fw.block_manager.WriteBlock(fw.location, fw.currentBlockNum, wrData)
 
 		if err != nil {
@@ -188,7 +187,6 @@ func (fw *FileWriter) FlushCurrentBlock() {
 
 		// Add jumbo flag at the end
 		fw.currentBlock = append(fw.currentBlock, jumboFlag...)
-		fmt.Print("Flushing current block number: ", fw.currentBlockNum, " with data: ", fw.currentBlock, "\n")
 		fw.allDataWritten = append(fw.allDataWritten, fw.currentBlock...)
 		fw.block_manager.WriteBlock(fw.location, fw.currentBlockNum, fw.currentBlock)
 		fw.currentBlockNum++
