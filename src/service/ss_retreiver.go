@@ -32,6 +32,8 @@ type EntryRetrieverPool struct {
 type Metadata struct {
 	bf_size       int64
 	bf_data       []byte
+	bf_pb_size	int64
+	bf_bp_bytes  []byte
 	summary_start int64
 	summary_end   int64
 	numOfItems    int64
@@ -335,13 +337,18 @@ func (r *EntryRetriever) deserializeMetadata(key string) (Metadata, error) {
 		}
 		i += int(readBlocks)
 	}
-
+	offsetInBlock := int64(0)
 	completedBlocks = append(completedBlocks, initial...)
 	bf_size := bytesToInt(completedBlocks[:8])
-	bf_data := completedBlocks[8 : 8+bf_size]
-
+	offsetInBlock += 8
+	bf_data := completedBlocks[offsetInBlock: offsetInBlock+bf_size]
+	offsetInBlock += bf_size
 	b, err := bloom_filter.DeserializeFromByteArray(bf_data)
 
+	bf_pb_size := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
+	offsetInBlock += 8
+	bf_bp_bytes := completedBlocks[offsetInBlock : offsetInBlock+bf_pb_size]
+	offsetInBlock += bf_pb_size
 	if err != nil {
 		return Metadata{}, fmt.Errorf("error deserializing bloom filter: %v", err)
 	}
@@ -351,9 +358,11 @@ func (r *EntryRetriever) deserializeMetadata(key string) (Metadata, error) {
 		return Metadata{}, fmt.Errorf("key %s not found in bloom filter", key)
 	}
 
-	sum_start_offset := bytesToInt(completedBlocks[8+bf_size : 16+bf_size])
+	sum_start_offset := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
+	offsetInBlock += 8
 
-	sum_end_offset := bytesToInt(completedBlocks[16+bf_size : 24+bf_size])
+	sum_end_offset := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
+	offsetInBlock += 8
 	blocksInFile, err := r.fileReader.GetFileSizeBlocks()
 	if err != nil {
 		return Metadata{}, fmt.Errorf("error getting file size blocks: %v", err)
@@ -361,10 +370,12 @@ func (r *EntryRetriever) deserializeMetadata(key string) (Metadata, error) {
 	sum_start_offset = int64(blocksInFile) - sum_start_offset
 	sum_end_offset = int64(blocksInFile) - sum_end_offset
 
-	numOfItems := bytesToInt(completedBlocks[24+bf_size : 32+bf_size])
+	numOfItems := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
+	offsetInBlock += 8
 
-	merkle_size := bytesToInt(completedBlocks[32+bf_size : 40+bf_size])
-	merkle_data := completedBlocks[40+bf_size : 40+bf_size+merkle_size]
+	merkle_size := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
+	offsetInBlock += 8
+	merkle_data := completedBlocks[offsetInBlock : offsetInBlock+merkle_size]
 
 	md := Metadata{
 		bf_size:       bf_size,
@@ -374,6 +385,8 @@ func (r *EntryRetriever) deserializeMetadata(key string) (Metadata, error) {
 		numOfItems:    numOfItems,
 		merkle_size:   merkle_size,
 		merkle_data:   merkle_data,
+		bf_pb_size:  bf_pb_size,
+		bf_bp_bytes: bf_bp_bytes,
 	}
 
 	return md, nil
@@ -519,14 +532,24 @@ func deserializeMetadataOnly(reader file_reader.FileReader) (Metadata, error) {
 		}
 		i += int(readBlocks)
 	}
+	offsetInBlock := int64(0)
 
 	completedBlocks = append(completedBlocks, initial...)
 	bf_size := bytesToInt(completedBlocks[:8])
-	bf_data := completedBlocks[8 : 8+bf_size]
+	offsetInBlock += 8
+	bf_data := completedBlocks[offsetInBlock : offsetInBlock+bf_size]
+	offsetInBlock += bf_size
 
-	sum_start_offset := bytesToInt(completedBlocks[8+bf_size : 16+bf_size])
+	bf_pd_size := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
+	offsetInBlock += 8
+	bf_bp_bytes := completedBlocks[offsetInBlock : offsetInBlock+bf_pd_size]
+	offsetInBlock += bf_pd_size
 
-	sum_end_offset := bytesToInt(completedBlocks[16+bf_size : 24+bf_size])
+	sum_start_offset := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
+	offsetInBlock += 8
+
+	sum_end_offset := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
+	offsetInBlock += 8
 	blocksInFile, err := reader.GetFileSizeBlocks()
 	if err != nil {
 		return Metadata{}, fmt.Errorf("error getting file size blocks: %v", err)
@@ -534,14 +557,18 @@ func deserializeMetadataOnly(reader file_reader.FileReader) (Metadata, error) {
 	sum_start_offset = int64(blocksInFile) - sum_start_offset
 	sum_end_offset = int64(blocksInFile) - sum_end_offset
 
-	numOfItems := bytesToInt(completedBlocks[24+bf_size : 32+bf_size])
+	numOfItems := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
+	offsetInBlock += 8
 
-	merkle_size := bytesToInt(completedBlocks[32+bf_size : 40+bf_size])
-	merkle_data := completedBlocks[40+bf_size : 40+bf_size+merkle_size]
+	merkle_size := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
+	offsetInBlock += 8
+	merkle_data := completedBlocks[offsetInBlock : offsetInBlock+merkle_size]
 
 	md := Metadata{
 		bf_size:       bf_size,
 		bf_data:       bf_data,
+		bf_pb_size:    bf_pd_size,
+		bf_bp_bytes:   bf_bp_bytes,
 		summary_start: sum_start_offset,
 		summary_end:   sum_end_offset,
 		numOfItems:    numOfItems,
