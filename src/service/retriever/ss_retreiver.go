@@ -1,4 +1,4 @@
-package service
+package retriever
 
 import (
 	"encoding/binary"
@@ -32,8 +32,8 @@ type EntryRetrieverPool struct {
 type Metadata struct {
 	bf_size       int64
 	bf_data       []byte
-	bf_pb_size	int64
-	bf_bp_bytes  []byte
+	bf_pb_size    int64
+	bf_bp_bytes   []byte
 	summary_start int64
 	summary_end   int64
 	numOfItems    int64
@@ -341,7 +341,7 @@ func (r *EntryRetriever) deserializeMetadata(key string) (Metadata, error) {
 	completedBlocks = append(completedBlocks, initial...)
 	bf_size := bytesToInt(completedBlocks[:8])
 	offsetInBlock += 8
-	bf_data := completedBlocks[offsetInBlock: offsetInBlock+bf_size]
+	bf_data := completedBlocks[offsetInBlock : offsetInBlock+bf_size]
 	offsetInBlock += bf_size
 	b, err := bloom_filter.DeserializeFromByteArray(bf_data)
 
@@ -385,8 +385,8 @@ func (r *EntryRetriever) deserializeMetadata(key string) (Metadata, error) {
 		numOfItems:    numOfItems,
 		merkle_size:   merkle_size,
 		merkle_data:   merkle_data,
-		bf_pb_size:  bf_pb_size,
-		bf_bp_bytes: bf_bp_bytes,
+		bf_pb_size:    bf_pb_size,
+		bf_bp_bytes:   bf_bp_bytes,
 	}
 
 	return md, nil

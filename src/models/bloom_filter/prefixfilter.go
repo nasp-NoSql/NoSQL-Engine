@@ -21,6 +21,19 @@ func (pf *PrefixBloomFilter) SerializeToByteArray() ([]byte, error) {
 	return pf.filter.SerializeToByteArray()
 }
 
+func DeserializePrefixBloomFilter(data []byte) (*PrefixBloomFilter, error) {
+	filter, err := DeserializeFromByteArray(data)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PrefixBloomFilter{
+		filter:    filter,
+		minLength: CONFIG.MinPrefixLength,
+		maxLength: CONFIG.MaxPrefixLength,
+	}, nil
+}
+
 func (pf *PrefixBloomFilter) Add(key string) {
 	// Dodaj sve prefikse ključa u filter
 	keyLen := len(key)
@@ -35,7 +48,7 @@ func (pf *PrefixBloomFilter) Add(key string) {
 	}
 }
 
-func (pf *PrefixBloomFilter) MightContainPrefix(prefix string) bool {
+func (pf *PrefixBloomFilter) Contains(prefix string) bool {
 	prefixLen := len(prefix)
 
 	// Ako je prefix kraći od minLength, možda postoji
