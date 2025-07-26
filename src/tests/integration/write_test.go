@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"nosqlEngine/src/config"
-	"nosqlEngine/src/models/key_value"
 	r "nosqlEngine/src/service"
 	b "nosqlEngine/src/service/block_manager"
 	rw "nosqlEngine/src/service/file_reader"
@@ -31,12 +30,10 @@ func TestWritePathIntegration(t *testing.T) {
 	mt := m.NewMemtable()
 
 	// Create a set of key-value pairs
-	keyValues := make([]key_value.KeyValue, 0, 10)
 	for i := 0; i < 10; i++ {
 		key := fmt.Sprintf("key%d", i+1)
 		value := fmt.Sprintf("value%d", i+1)
 		mt.Add(key, value)
-		keyValues = append(keyValues, key_value.NewKeyValue(key, value))
 	}
 
 	// Write the memtable to disk via the parser and file writer
@@ -73,13 +70,11 @@ func TestWriteRead(t *testing.T) {
 	ssParser := ss_parser.NewSSParser(fileWriter)
 
 	// Create a set of key-value pairs
-	keyValues := make([]key_value.KeyValue, 0, 10)
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 1000; i++ {
 		key := fmt.Sprintf("key%d", i+1)
 		value := fmt.Sprintf("value%d", i+1)
 		mt.Add(key, value)
 
-		keyValues = append(keyValues, key_value.NewKeyValue(key, value))
 	}
 
 	// Write the memtable to disk via the parser and file writer
@@ -90,7 +85,7 @@ func TestWriteRead(t *testing.T) {
 
 	retriever := r.NewEntryRetriever(*reader)
 
-	res, err := retriever.RetrieveEntry("key7")
+	res, err := retriever.RetrieveEntry("key1001")
 
 	if err != nil {
 		t.Fatalf("Failed to retrieve entry: %v for metadata: %v", err, res)

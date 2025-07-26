@@ -139,22 +139,19 @@ func (r *EntryRetriever) deserializeMetadata(key string) (Metadata, error) {
 	}
 	i += 1
 
-	mdSize := bytesToInt(initial[len(initial)-8:])
-	fmt.Printf("Metadata size: %d\n", mdSize)
-	numOfBlocks := mdSize / int64(CONFIG.BlockSize)
-	if mdSize%int64(CONFIG.BlockSize) != 0 {
-		numOfBlocks++
-	}
+	mdOffset := bytesToInt(initial[len(initial)-8:])
 
-	numOfBlocks = numOfBlocks + 1 // +1 for the initial metadata block
-	fmt.Printf("Number of blocks: %d\n", numOfBlocks)
-	if mdSize < int64(CONFIG.BlockSize) {
-		numOfBlocks = 0 // At least one block for metadata
+	fmt.Print("Metadata starting offset: ", mdOffset, "\n")
+	totalBlocks, err := r.fileReader.GetFileSizeBlocks()
+	if err != nil {
+		return Metadata{}, fmt.Errorf("error getting file size blocks: %v", err)
 	}
+	numOfBlocks := int64(totalBlocks) - mdOffset
+	fmt.Printf("Total blocks: %d, Metadata offset: %d, Number of blocks: %d\n", totalBlocks, mdOffset, numOfBlocks)
 	completedBlocks := make([]byte, 0, int(numOfBlocks)*CONFIG.BlockSize)
-
-	for i <= int(numOfBlocks) {
-		block, readBlocks, err := r.fileReader.Read(i)
+	completedBlocks = append(completedBlocks, initial...)
+	for i < int(numOfBlocks) {
+		block, readBlocks, err := r.fileReader.ReadEntry(i)
 		if err != nil {
 			return Metadata{}, fmt.Errorf("error reading block %d: %v", i, err)
 		}

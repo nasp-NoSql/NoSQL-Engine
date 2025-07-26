@@ -1,6 +1,7 @@
 package ss_parser
 
 import (
+	"fmt"
 	"nosqlEngine/src/models/bloom_filter"
 	"nosqlEngine/src/models/key_value"
 	"nosqlEngine/src/service/file_writer"
@@ -27,6 +28,7 @@ func (ssParser *SSParserImpl) FlushMemtable(data []key_value.KeyValue) {
 	initialSummaryOffset := ssParser.fileWriter.Write(nil, true, nil)
 
 	SerializeSummary(sumKeys, sumOffsets, ssParser.fileWriter)
-	bt_bf := filter.GetArray()
+	bt_bf, _ := filter.SerializeToByteArray()
+	fmt.Print("Bf bytes: ", bt_bf, "\n")
 	SerializeMetaData(ssParser.fileWriter.Write(nil, true, nil), bt_bf, make([]byte, 0), len(data), ssParser.fileWriter, initialSummaryOffset)
 }

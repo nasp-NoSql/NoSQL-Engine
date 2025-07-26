@@ -2,6 +2,7 @@ package ss_parser
 
 import (
 	"encoding/binary"
+	"fmt"
 	"nosqlEngine/src/config"
 	"nosqlEngine/src/models/key_value"
 	"nosqlEngine/src/service/file_writer"
@@ -59,15 +60,21 @@ func SerializeSummary(keys []string, offsets []int, fw file_writer.FileWriterInt
 }
 
 func SerializeMetaData(summaryStartOffset int, bloomFilterBytes []byte, merkleTreeBytes []byte, numOfItems int, fw file_writer.FileWriterInterface, SummaryEndOffset int) {
-	fw.Write(IntToBytes(int64(len(bloomFilterBytes))), false, nil)
+	fmt.Print("Serializing bf_size\n")
+	starting_offset := fw.Write(IntToBytes(int64(len(bloomFilterBytes))), false, nil)
+	fmt.Print("Serializing bf\n")
 	fw.Write(bloomFilterBytes, false, nil)
+	fmt.Print("serializing sum start offset\n")
 	fw.Write(IntToBytes(int64(summaryStartOffset)), false, nil)
+	fmt.Print("serializing sum end offset\n")
 	fw.Write(IntToBytes(int64(SummaryEndOffset)), false, nil)
+	fmt.Print("serializing num of items\n")
 	fw.Write(IntToBytes(int64(numOfItems)), false, nil)
+	fmt.Print("serializing merkle tree size\n")
 	fw.Write(IntToBytes(int64(len(merkleTreeBytes))), false, nil)
+	fmt.Print("Serializing merkle tree\n")
 	fw.Write(merkleTreeBytes, false, nil)
-	metadataLength := 8 + len(bloomFilterBytes) + 8 + 8 + 8 + len(merkleTreeBytes) + 8
-	fw.Write(nil, true, IntToBytes(int64(metadataLength)))
+	fw.Write(nil, true, IntToBytes(int64(starting_offset)))
 
 }
 
