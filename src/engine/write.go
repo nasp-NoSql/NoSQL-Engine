@@ -8,7 +8,7 @@ import (
 func (engine *Engine) Write(user string,key string, value string, fromWal bool) error {
 	// check if memory full
 	if engine.checkIfMemtableFull() {
-		return fmt.Errorf("memory is full, cannot write")
+		engine.memtables[engine.curr_mem_index].Clear()
 	}
 
 
@@ -35,15 +35,14 @@ func (engine *Engine) Write(user string,key string, value string, fromWal bool) 
 		write_mem.Add(key, value)
 	}
 
-	done := make(chan struct{})
 	if write_mem.GetSize() >= CONFIG.MemtableSize {
 		engine.SetNextMemtable()
+		done := make(chan struct{})
 		go func() {
 			engine.flush_lock.Lock()
 			defer engine.flush_lock.Unlock()
 
 			engine.ss_parser.FlushMemtable(write_mem.ToRaw())
-			write_mem = 
 			if engine.curr_mem_index == 0 {
 				engine.wal.DeleteWalSegments()
 			}

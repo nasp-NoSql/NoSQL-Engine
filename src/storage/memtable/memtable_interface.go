@@ -8,5 +8,6 @@ type Memtable interface {
 	Remove(key string) bool
 	ToRaw() []key_value.KeyValue // keys, values
 	GetSize() int
+	Clear() bool
 }
 

@@ -4,6 +4,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"math/rand"
+	"nosqlEngine/src/models/key_value"
 	"os"
 	"path/filepath"
 	"time"
@@ -19,6 +20,7 @@ type Node struct {
 type SkipList struct {
 	Head   *Node
 	Levels int
+	Size   int
 }
 
 func (list *SkipList) initialize() {
@@ -68,10 +70,20 @@ func (list *SkipList) Remove(key string) bool {
 	if !exists {
 		return false
 	}
+	
+	// Check if it's already a tombstone
+	alreadyTombstone := (node.Value == "<TOMBSTONE!>")
+	
 	for node != nil {
 		node.Value = "<TOMBSTONE!>"
 		node = node.Below
 	}
+	
+	// Only decrement size if it wasn't already a tombstone
+	if !alreadyTombstone {
+		list.Size--
+	}
+	
 	return true
 }
 
@@ -127,6 +139,15 @@ func (list *SkipList) Add(key string, value string) bool {
 	if list.Head == nil {
 		list.initialize()
 	}
+
+	// Check if the key already exists
+	_, exists := list.Get(key)
+	if exists {
+		// Update all nodes with this key
+		return list.updateExistingKey(key, value)
+	}
+
+	// Key doesn't exist, add new node(s)
 	times_to_add := 1
 
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -154,7 +175,32 @@ func (list *SkipList) Add(key string, value string) bool {
 	for i := 0; i < len(added)-1; i++ {
 		added[i].Below = added[i+1]
 	}
+	
+	// Increment size since we added a new key
+	list.Size++
 	return true
+}
+
+// updateExistingKey updates the value for all nodes with the given key
+func (list *SkipList) updateExistingKey(key string, value string) bool {
+	node := list.Head
+	updated := false
+	
+	// Traverse all levels
+	for node != nil {
+		tmp := node
+		// Traverse horizontally on this level
+		for tmp != nil {
+			if tmp.Key == key {
+				tmp.Value = value
+				updated = true
+			}
+			tmp = tmp.Right
+		}
+		node = node.Below
+	}
+	
+	return updated
 }
 
 func (list *SkipList) Print() {
@@ -199,5 +245,31 @@ func Deserialize(filename string) (*SkipList, error) {
 	}
 	return &list, nil
 }
-
-func ToRaw()
+func (list *SkipList) ToRaw() []key_value.KeyValue {
+	ret := make([]key_value.KeyValue, 0)
+	node := list.Head
+	for node != nil && node.Below != nil {
+		node = node.Below
+	}
+	for node != nil {
+		tmp := node.Right
+		for tmp != nil {
+			if tmp.Key != "" {
+				ret = append(ret, key_value.NewKeyValue(tmp.Key, tmp.Value))
+			}
+			tmp = tmp.Right
+		}
+	}
+	return ret
+}
+func (list *SkipList) Clear() bool {
+	list.Head = &Node{Key: ""}
+	tmp := list.Head
+	for i := 0; i < list.Levels; i++ {
+		tmp.Below = &Node{Key: ""}
+		tmp = tmp.Below
+	}
+	list.Size = 0
+	list.Levels = 1
+	return true
+}
