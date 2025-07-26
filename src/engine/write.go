@@ -4,13 +4,11 @@ import (
 	"fmt"
 )
 
-
-func (engine *Engine) Write(user string,key string, value string, fromWal bool) error {
+func (engine *Engine) Write(user string, key string, value string, fromWal bool) error {
 	// check if memory full
 	if engine.checkIfMemtableFull() {
 		engine.memtables[engine.curr_mem_index].Clear()
 	}
-
 
 	if !fromWal {
 		if ok, err := engine.userLimiter.CheckUserTokens(user); !ok {
@@ -46,12 +44,12 @@ func (engine *Engine) Write(user string,key string, value string, fromWal bool) 
 			if engine.curr_mem_index == 0 {
 				engine.wal.DeleteWalSegments()
 			}
-			close(done)  // signal that FlushMemtable is done
+			close(done) // signal that FlushMemtable is done
 		}()
 
 		go func() {
-			<-done  // wait for FlushMemtable to finish
-			engine.ss_compacter.CheckCompactionConditions()  
+			<-done // wait for FlushMemtable to finish
+			engine.ss_compacter.CheckCompactionConditions()
 		}()
 	}
 	return nil
