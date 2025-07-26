@@ -288,7 +288,7 @@ func replayWALSegment(reader *file_reader.FileReader) ([]WALEntry, error) {
 }
 
 // WAL deletes the WAL folder, to be used when all memtables are flushed
-func (wal *WAL) DeleteWALSegments(path string) error {
+func (wal *WAL) DeleteWALSegments() error {
 	segmentPaths, err := GetWALSegmentPaths()
 	if err != nil {
 		return nil
