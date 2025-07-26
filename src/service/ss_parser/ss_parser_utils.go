@@ -60,9 +60,11 @@ func SerializeSummary(keys []string, offsets []int, fw file_writer.FileWriterInt
 
 }
 
-func SerializeMetaData(summaryStartOffset int, bloomFilterBytes []byte, merkleTreeBytes []byte, numOfItems int, fw file_writer.FileWriterInterface, SummaryEndOffset int) {
+func SerializeMetaData(summaryStartOffset int, bloomFilterBytes []byte, merkleTreeBytes []byte, numOfItems int, fw file_writer.FileWriterInterface, SummaryEndOffset int, prefixFilterBytes []byte) {
 	starting_offset := fw.Write(IntToBytes(int64(len(bloomFilterBytes))), false, nil)
 	fw.Write(bloomFilterBytes, false, nil)
+	fw.Write(IntToBytes(int64(len(prefixFilterBytes))), false, nil)
+	fw.Write(prefixFilterBytes, false, nil)
 	fw.Write(IntToBytes(int64(summaryStartOffset)), false, nil)
 	fw.Write(IntToBytes(int64(SummaryEndOffset)), false, nil)
 	fw.Write(IntToBytes(int64(numOfItems)), false, nil)

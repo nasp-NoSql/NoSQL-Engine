@@ -32,6 +32,14 @@ func NewBloomFilter() *BloomFilter {
 	return filter
 }
 
+func NewBloomFilterWithParams(expectedElements int, falsePositiveRate float64) *BloomFilter {
+	filter := &BloomFilter{}
+	filter.calculateParams(expectedElements, falsePositiveRate)
+	filter.Array = make([]byte, filter.M)
+	filter.Hashes = CreateHashFunctions(uint32(filter.K))
+	return filter
+}
+
 func (filter *BloomFilter) Add(s string) {
 	for _, hash := range filter.Hashes {
 		hashed_value := hash.Hash([]byte(s))

@@ -6,15 +6,19 @@ type PrefixBloomFilter struct {
 	maxLength int // maksimalna dužina prefiksa
 }
 
-func NewPrefixBloomFilter(expectedItems int, falsePositiveRate float64, minLen, maxLen int) *PrefixBloomFilter {
+func NewPrefixBloomFilter() *PrefixBloomFilter {
 	// Proceni broj prefiksa: za svaki ključ, imamo (maxLen - minLen + 1) prefiksa
-	//estimatedPrefixes := expectedItems * (maxLen - minLen + 1)
+	estimatedPrefixes := CONFIG.BloomFilterExpectedElements * (CONFIG.MaxPrefixLength - CONFIG.MinPrefixLength + 1)
 
 	return &PrefixBloomFilter{
-		filter:    NewBloomFilter(),
-		minLength: minLen,
-		maxLength: maxLen,
+		filter:    NewBloomFilterWithParams(estimatedPrefixes, CONFIG.BloomFilterFalsePositiveRate),
+		minLength: CONFIG.MinPrefixLength,
+		maxLength: CONFIG.MaxPrefixLength,
 	}
+}
+
+func (pf *PrefixBloomFilter) SerializeToByteArray() ([]byte, error) {
+	return pf.filter.SerializeToByteArray()
 }
 
 func (pf *PrefixBloomFilter) Add(key string) {

@@ -28,5 +28,7 @@ func (ssParser *SSParserImpl) FlushMemtable(data []key_value.KeyValue) {
 
 	SerializeSummary(sumKeys, sumOffsets, ssParser.fileWriter)
 	bt_bf, _ := filter.SerializeToByteArray()
-	SerializeMetaData(ssParser.fileWriter.Write(nil, true, nil), bt_bf, make([]byte, 0), len(data), ssParser.fileWriter, initialSummaryOffset)
+	prefixFilter := bloom_filter.NewPrefixBloomFilter()
+	bt_pbf, _ := prefixFilter.SerializeToByteArray()
+	SerializeMetaData(ssParser.fileWriter.Write(nil, true, nil), bt_bf, make([]byte, 0), len(data), ssParser.fileWriter, initialSummaryOffset, bt_pbf)
 }
