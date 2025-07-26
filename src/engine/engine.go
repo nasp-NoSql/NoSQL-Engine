@@ -25,7 +25,7 @@ type Engine struct {
 	ss_parser      ss_parser.SSParser
 	ss_compacter   *ss_compacter.SSCompacterST
 	block_manager  *block_manager.BlockManager
-	flush_lock     	*sync.Mutex
+	flush_lock     *sync.Mutex
 }
 
 func NewEngine() *Engine {
@@ -35,21 +35,21 @@ func NewEngine() *Engine {
 	for i := 0; i < memtableCount; i++ {
 		memtables[i] = memtable.NewMemtable()
 	}
-	wal, err := wal.NewWAL()
+	wal, err := wal.NewWAL(bm)
 	if err != nil {
 		fmt.Println("Error creating WAL:", err)
 		return nil
 	}
 	uuidStr := uuid.New().String()
 	return &Engine{
-		userLimiter:   user_limiter.NewUserLimiter(),
-		memtables:     memtables,
-		ss_parser:     ss_parser.NewSSParser(file_writer.NewFileWriter(bm, CONFIG.BlockSize, "sstable/sstable_"+uuidStr+".db")),
-		ss_compacter:  ss_compacter.NewSSCompacterST(),
-		wal:           wal,
+		userLimiter:    user_limiter.NewUserLimiter(),
+		memtables:      memtables,
+		ss_parser:      ss_parser.NewSSParser(file_writer.NewFileWriter(bm, CONFIG.BlockSize, "sstable/sstable_"+uuidStr+".db")),
+		ss_compacter:   ss_compacter.NewSSCompacterST(),
+		wal:            wal,
 		curr_mem_index: 0,
-		block_manager: bm,
-		flush_lock:    &sync.Mutex{},
+		block_manager:  bm,
+		flush_lock:     &sync.Mutex{},
 	}
 }
 func (engine *Engine) SetNextMemtable() {
@@ -60,7 +60,14 @@ func (engine *Engine) checkIfMemtableFull() bool {
 }
 
 func (engine *Engine) Start() {
-	// wal.Replay("holder")
+	recoveredEntries, err := wal.ReplayWAL(engine.block_manager)
+	if err != nil {
+		fmt.Println("Error replaying WAL:", err)
+		return
+	}
+	for _, entry := range recoveredEntries {
+		engine.Write(entry.Key, entry.Value, entry.Operation, true)
+	}
 }
 func (engine *Engine) Close() error {
 	return nil

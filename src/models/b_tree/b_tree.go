@@ -2,6 +2,7 @@ package b_tree
 
 import (
 	"encoding/gob"
+	"nosqlEngine/src/config"
 	"os"
 	"path/filepath"
 )
@@ -19,14 +20,17 @@ type BTreeNode struct {
 type BTree struct {
 	Root *BTreeNode
 	T    int // minimum degree
+	Size int // number of keys in the tree
 }
+
+var CONFIG = config.GetConfig()
 
 // NewBTree creates a new B-Tree with given minimum degree
 func NewBTree(t int) *BTree {
 	return &BTree{Root: &BTreeNode{IsLeaf: true}, T: t}
 }
 
-func (tree *BTree) Search(key string) (string, bool) {
+func (tree *BTree) Get(key string) (string, bool) {
 	return tree.Root.search(key)
 }
 
@@ -36,7 +40,7 @@ func (node *BTreeNode) search(key string) (string, bool) {
 		i++
 	}
 	if i < len(node.Keys) && key == node.Keys[i] {
-		if node.Values[i] == "<TOMBSTONE!>" {
+		if node.Values[i] == CONFIG.Tombstone {
 			return "", false
 		}
 		return node.Values[i], true
@@ -116,7 +120,7 @@ func (node *BTreeNode) Remove(key string) {
 		i++
 	}
 	if i < len(node.Keys) && key == node.Keys[i] {
-		node.Values[i] = "<TOMBSTONE!>"
+		node.Values[i] = CONFIG.Tombstone
 		return
 	}
 	if node.IsLeaf {

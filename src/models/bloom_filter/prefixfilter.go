@@ -1,0 +1,49 @@
+package bloom_filter
+
+type PrefixBloomFilter struct {
+	filter    *BloomFilter
+	minLength int // minimalna dužina prefiksa
+	maxLength int // maksimalna dužina prefiksa
+}
+
+func NewPrefixBloomFilter(expectedItems int, falsePositiveRate float64, minLen, maxLen int) *PrefixBloomFilter {
+	// Proceni broj prefiksa: za svaki ključ, imamo (maxLen - minLen + 1) prefiksa
+	//estimatedPrefixes := expectedItems * (maxLen - minLen + 1)
+
+	return &PrefixBloomFilter{
+		filter:    NewBloomFilter(),
+		minLength: minLen,
+		maxLength: maxLen,
+	}
+}
+
+func (pf *PrefixBloomFilter) Add(key string) {
+	// Dodaj sve prefikse ključa u filter
+	keyLen := len(key)
+	maxLen := pf.maxLength
+	if keyLen < maxLen {
+		maxLen = keyLen
+	}
+
+	for i := pf.minLength; i <= maxLen; i++ {
+		prefix := key[:i]
+		pf.filter.Add(prefix)
+	}
+}
+
+func (pf *PrefixBloomFilter) MightContainPrefix(prefix string) bool {
+	prefixLen := len(prefix)
+
+	// Ako je prefix kraći od minLength, možda postoji
+	if prefixLen < pf.minLength {
+		return true
+	}
+
+	// Ako je prefix duži od maxLength, testiraj maxLength verziju
+	if prefixLen > pf.maxLength {
+		return pf.filter.Check(prefix[:pf.maxLength])
+	}
+
+	// Inače testiraj direktno
+	return pf.filter.Check(prefix)
+}

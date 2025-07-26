@@ -41,14 +41,14 @@ type WAL struct {
 }
 
 // NewWAL creates or opens a WAL file for appending, with a buffer pool of given size
-func NewWAL() (*WAL, error) {
+func NewWAL(block_manager *block_manager.BlockManager) (*WAL, error) {
 	// f, err := os.OpenFile("data/wal/current-wal.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	// if err != nil {
 	// 	return nil, err
 	// }
-	bufferSize := CONFIG.WALBufferSize                                                   // default buffer size
-	segmentSize := CONFIG.WALSegmentSize                                                 // default segment size in bytes
-	writer := file_writer.NewFileWriter(nil, CONFIG.BlockSize, generateWALSegmentName()) // Create a new FileWriter with the segment size
+	bufferSize := CONFIG.WALBufferSize                                                             // default buffer size
+	segmentSize := CONFIG.WALSegmentSize                                                           // default segment size in bytes
+	writer := file_writer.NewFileWriter(block_manager, CONFIG.BlockSize, generateWALSegmentName()) // Create a new FileWriter with the segment size
 	return &WAL{buffer: make([][]byte, 0, bufferSize), bufferSize: bufferSize, segmentSize: segmentSize, writer: writer}, nil
 }
 
@@ -249,9 +249,8 @@ func GetWALSegmentPaths() ([]string, error) {
 }
 
 // ReplayWAL reads all the WAL segment files and returns all entries (for recovery)
-func ReplayWAL() ([]WALEntry, error) {
+func ReplayWAL(block_manager *block_manager.BlockManager) ([]WALEntry, error) {
 	var allEntries []WALEntry
-	block_manager := block_manager.NewBlockManager()
 	reader := file_reader.NewFileReader("", CONFIG.BlockSize, *block_manager)
 	// Get the list of WAL segment files
 	segmentPaths, err := GetWALSegmentPaths()
@@ -288,11 +287,18 @@ func replayWALSegment(reader *file_reader.FileReader) ([]WALEntry, error) {
 	return entries, nil
 }
 
-// DeleteWAL deletes the WAL folder, to be used when all memtables are flushed
-func DeleteWAL(path string) error {
-	if err := os.Remove(path); err != nil {
-		return fmt.Errorf("failed to delete WAL file %s: %w", path, err)
+// WAL deletes the WAL folder, to be used when all memtables are flushed
+func (wal *WAL) DeleteWALSegments(path string) error {
+	segmentPaths, err := GetWALSegmentPaths()
+	if err != nil {
+		return nil
 	}
+	for _, segment := range segmentPaths {
+		if err := os.Remove(segment); err != nil {
+			return fmt.Errorf("failed to delete WAL segment %s: %w", segment, err)
+		}
+	}
+	wal.Rotate() // Reset the WAL to a new segment
 	return nil
 }
 

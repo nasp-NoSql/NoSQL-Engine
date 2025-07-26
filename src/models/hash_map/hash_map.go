@@ -6,12 +6,12 @@ import (
 
 type HashMap struct {
 	data map[string]string
-	size int64
+	size int
 }
 
 // GetSize implements memtable.Memtable.
 func (hmap *HashMap) GetSize() int {
-	return 40
+	return hmap.size
 }
 
 func NewHashMap() *HashMap {
@@ -20,7 +20,7 @@ func NewHashMap() *HashMap {
 
 func (hmap *HashMap) Add(key string, value string) bool {
 	hmap.data[key] = value
-	hmap.size += (int64)(len(key) + len(value))
+	hmap.size += (len(key) + len(value))
 	return true
 }
 func (hmap *HashMap) Get(key string) (string, bool) {

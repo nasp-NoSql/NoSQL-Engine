@@ -24,6 +24,9 @@ type Config struct {
 	BloomFilterExpectedElements  int     `json:"BLOOM_FILTER_EXPECTED_ELEMENTS"`
 	LSMLevels                    int     `json:"LSM_LEVELS"`
 	LSMBaseDir                   string  `json:"LSM_BASE_DIR"`
+	MinPrefixLength              int     `json:"MIN_PREFIX_LENGTH"`
+	MaxPrefixLength              int     `json:"MAX_PREFIX_LENGTH"`
+	SkipListLevels               int     `json:"SKIP_LIST_LEVELS"`
 }
 
 func GetConfig() Config {

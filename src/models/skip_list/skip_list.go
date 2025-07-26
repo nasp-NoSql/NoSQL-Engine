@@ -4,6 +4,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"math/rand"
+	"nosqlEngine/src/config"
 	"os"
 	"path/filepath"
 	"time"
@@ -20,6 +21,8 @@ type SkipList struct {
 	Head   *Node
 	Levels int
 }
+
+var CONFIG = config.GetConfig()
 
 func (list *SkipList) initialize() {
 	list.Head = &Node{Key: ""}
@@ -44,7 +47,7 @@ func (list *SkipList) Get(key string) (string, bool) {
 
 	for {
 		if tmp.Key == key {
-			if tmp.Value == "<TOMBSTONE!>" {
+			if tmp.Value == CONFIG.Tombstone {
 				return "", false
 			}
 			return tmp.Value, true
@@ -69,7 +72,7 @@ func (list *SkipList) Remove(key string) bool {
 		return false
 	}
 	for node != nil {
-		node.Value = "<TOMBSTONE!>"
+		node.Value = CONFIG.Tombstone
 		node = node.Below
 	}
 	return true
@@ -199,5 +202,3 @@ func Deserialize(filename string) (*SkipList, error) {
 	}
 	return &list, nil
 }
-
-func ToRaw()

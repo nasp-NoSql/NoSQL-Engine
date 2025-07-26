@@ -6,7 +6,6 @@ import (
 	"nosqlEngine/src/service/file_writer"
 )
 
-
 type SSParserImpl struct {
 	fileWriter file_writer.FileWriterInterface
 }
