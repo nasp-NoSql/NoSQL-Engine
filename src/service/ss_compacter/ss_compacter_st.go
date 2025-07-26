@@ -1,10 +1,14 @@
 package ss_compacter
 
 import (
+	"fmt"
 	"nosqlEngine/src/config"
 	"nosqlEngine/src/models/bloom_filter"
 	"nosqlEngine/src/service/file_writer"
 	"nosqlEngine/src/service/ss_parser"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
 var CONFIG = config.GetConfig()
@@ -16,10 +20,36 @@ func NewSSCompacterST() *SSCompacterST {
 	return &SSCompacterST{}
 }
 
-func (sc *SSCompacterST) CheckIfCompactionNeeded() bool {
-	// to be implemented
-	return true
+func (sc *SSCompacterST) CheckCompactionConditions() bool {
+	baseDir := CONFIG.LSMBaseDir
+	level := 0
+	compacted := false
+	for level < CONFIG.LSMLevels {
+		lvlDir := filepath.Join(baseDir, fmt.Sprintf("lvl%d", level))
+		files, err := os.ReadDir(lvlDir)
+		if err != nil {
+			// If the directory doesn't exist, stop
+			break
+		}
+		var sstFiles []string
+		for _, f := range files {
+			if !f.IsDir() && (strings.HasSuffix(f.Name(), ".db") || strings.HasSuffix(f.Name(), ".sst")) {
+				sstFiles = append(sstFiles, filepath.Join(lvlDir, f.Name()))
+			}
+		}
+		for len(sstFiles) >= 4 {
+			toCompact := sstFiles[:4]
+			sstFiles = sstFiles[4:]
+			// You may need to create a FileWriter for the next level here
+			// fw := ...
+			sc.compactTables(toCompact, nil) // Replace nil with actual FileWriter
+			compacted = true
+		}
+		level++
+	}
+	return compacted
 }
+
 
 func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWriter) {
 	counts := make([]int, len(tables))          // holds the number of items in each table

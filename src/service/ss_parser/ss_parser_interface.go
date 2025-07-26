@@ -5,5 +5,5 @@ import (
 )
 
 type SSParser interface {
-	AddMemtable(keyValues []key_value.KeyValue)
+	FlushMemtable(keyValues []key_value.KeyValue)
 }

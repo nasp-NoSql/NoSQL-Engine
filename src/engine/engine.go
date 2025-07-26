@@ -10,6 +10,7 @@ import (
 	"nosqlEngine/src/service/user_limiter"
 	"nosqlEngine/src/storage/memtable"
 	"nosqlEngine/src/storage/wal"
+	"sync"
 
 	"github.com/google/uuid"
 )
@@ -24,6 +25,7 @@ type Engine struct {
 	ss_parser      ss_parser.SSParser
 	ss_compacter   *ss_compacter.SSCompacterST
 	block_manager  *block_manager.BlockManager
+	flush_lock     	*sync.Mutex
 }
 
 func NewEngine() *Engine {
@@ -45,7 +47,9 @@ func NewEngine() *Engine {
 		ss_parser:     ss_parser.NewSSParser(file_writer.NewFileWriter(bm, CONFIG.BlockSize, "sstable/sstable_"+uuidStr+".db")),
 		ss_compacter:  ss_compacter.NewSSCompacterST(),
 		wal:           wal,
+		curr_mem_index: 0,
 		block_manager: bm,
+		flush_lock:    &sync.Mutex{},
 	}
 }
 func (engine *Engine) SetNextMemtable() {

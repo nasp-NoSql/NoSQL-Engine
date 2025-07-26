@@ -22,6 +22,8 @@ type Config struct {
 	WALSegmentSize               int     `json:"WAL_SEGMENT_SIZE"`
 	BloomFilterFalsePositiveRate float64 `json:"BLOOM_FILTER_FALSE_POSITIVE_RATE"`
 	BloomFilterExpectedElements  int     `json:"BLOOM_FILTER_EXPECTED_ELEMENTS"`
+	LSMLevels                    int     `json:"LSM_LEVELS"`
+	LSMBaseDir                   string  `json:"LSM_BASE_DIR"`
 }
 
 func GetConfig() Config {
