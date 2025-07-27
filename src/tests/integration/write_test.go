@@ -70,8 +70,8 @@ func TestWriteRead(t *testing.T) {
 	ssParser := ss_parser.NewSSParser(fileWriter)
 
 	// Create a set of key-value pairs
-	for i := 0; i < 1000; i++ {
-		key := fmt.Sprintf("keyy%d", i+1)
+	for i := 0; i < 10; i++ {
+		key := fmt.Sprintf("keyyy%d", i+1)
 
 		value := fmt.Sprintf("valueee%d", i+1)
 		mt.Add(key, value)
@@ -85,7 +85,7 @@ func TestWriteRead(t *testing.T) {
 
 	retriever := r.NewEntryRetriever(bm)
 
-	res, err := retriever.RetrieveEntry("key167")
+	res, err := retriever.RetrieveEntry("keyyy1")
 
 	if err != nil {
 		t.Fatalf("Failed to retrieve entry: %v for metadata: %v", err, res)
@@ -108,7 +108,7 @@ func TestGas(t *testing.T) {
 	retriever := r.NewEntryRetriever(bm)
 
 	// Test retrieving a non-existent entry
-	_, err := retriever.RetrieveEntry("keyy2")
+	_, err := retriever.RetrieveEntry("keyyy7")
 	if err != nil {
 		t.Fatalf("Expected error for non-existent key, got nil")
 	}

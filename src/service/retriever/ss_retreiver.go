@@ -1,20 +1,21 @@
 package retriever
 
 import (
-	"encoding/binary"
 	"fmt"
 	"nosqlEngine/src/config"
 	"nosqlEngine/src/models/bloom_filter"
 	"nosqlEngine/src/service/block_manager"
 	"nosqlEngine/src/service/file_reader"
-	"os"
-	"path/filepath"
 )
+
+var CONFIG = config.GetConfig()
 
 type EntryRetriever struct {
 	fileReader   file_reader.FileReader
 	sstablePaths []string
 	currentIndex int
+	currentLevel   int
+
 }
 
 type EntryRetrieverPool struct {
@@ -28,44 +29,16 @@ type EntryRetrieverPool struct {
 	cachedBlocks   [][]byte // Cached cleaned block data for each reader
 }
 
-type Metadata struct {
-	bf_size       int64
-	bf_data       []byte
-	bf_pb_size    int64
-	bf_bp_bytes   []byte
-	summary_start int64
-	summary_end   int64
-	num_of_items    int64
-	merkle_size   int64
-	merkle_data   []byte
-}
 
-type Block struct {
-	// Placeholder struct - can be removed if not needed
-}
+// type Block struct {
+// 	// Placeholder struct - can be removed if not needed
+// }
 
-type KeyOffset struct {
-	key    string
-	offset int64
-}
 
-func (ko KeyOffset) getKey() string {
-	return ko.key
-}
 
-func (ko KeyOffset) getOffset() int64 {
-	return ko.offset
-}
-
-var CONFIG = config.GetConfig()
-
-func bytesToInt(buf []byte) int64 {
-	return int64(binary.BigEndian.Uint64(buf))
-
-}
 func NewEntryRetriever(bm *block_manager.BlockManager) *EntryRetriever {
 	// Initialize SSTable pool by scanning for sstable files
-	sstablePaths := initializeSSTablePool()
+	sstablePaths := getFilesFromLevel(0)
 
 	// Create a single block manager and file reader instance
 	var fileReader file_reader.FileReader
@@ -82,6 +55,7 @@ func NewEntryRetriever(bm *block_manager.BlockManager) *EntryRetriever {
 		fileReader:   fileReader,
 		sstablePaths: sstablePaths,
 		currentIndex: 0,
+		currentLevel: 0,
 	}
 }
 
@@ -168,25 +142,21 @@ func (r *EntryRetrieverPool) loadNextBlock(readerIndex int) error {
 	return nil
 }
 
-func initializeSSTablePool() []string {
-	var sstablePaths []string
-
-	
-	sstableDir := filepath.ToSlash(filepath.Join("../../../data/sstable"))
-	sstablePaths = make([]string, 0)
-	for i := 1; i < CONFIG.LSMLevels; i++ {
-		files, _ := os.ReadDir(sstableDir+"/lvl" + fmt.Sprint(i))
-		for _, file := range files {
-			sstablePaths = append(sstablePaths, filepath.Join(sstableDir+"/lvl"+fmt.Sprint(i), file.Name()))
-		}
-	}
-	return sstablePaths
-}
-
 func (r *EntryRetriever) resetToNextSSTable() bool {
 	r.currentIndex++
 	if r.currentIndex >= len(r.sstablePaths) {
-		return false // No more SSTables to check
+		if r.currentLevel < CONFIG.LSMLevels { // move to next level if available
+			r.currentLevel++
+			r.sstablePaths = getFilesFromLevel(r.currentLevel)
+			if len(r.sstablePaths) == 0 {
+				fmt.Println("No more SSTables found at level", r.currentLevel)
+				return false
+			}
+			r.currentIndex = 0
+		} else {
+			fmt.Println("Reached the end of all SSTables")
+			return false
+		}
 	}
 
 	r.fileReader.ResetReader(r.sstablePaths[r.currentIndex], false)
@@ -267,31 +237,6 @@ func (r *EntryRetriever) RetrieveEntry(key string) (bool, error) {
 			return false, fmt.Errorf("key %s not found in any SSTable", key)
 		}
 	}
-}
-
-func (metadata *Metadata) GetBloomFilterSize() int64 {
-	return metadata.bf_size
-}
-
-func (metadata *Metadata) GetSummaryStartOffset() int64 {
-	return metadata.summary_start
-}
-
-func (metadata *Metadata) GetSummaryEndOffset() int64 {
-	return metadata.summary_end
-}
-
-func (metadata *Metadata) Getnum_of_items() int64 {
-	return metadata.num_of_items
-}
-func (metadata *Metadata) GetMerkleSize() int64 {
-	return metadata.merkle_size
-}
-func (metadata *Metadata) GetMerkleData() []byte {
-	return metadata.merkle_data
-}
-func (metadata *Metadata) GetBloomFilter() []byte {
-	return metadata.bf_data
 }
 
 func (r *EntryRetriever) deserializeMetadata(key string) (Metadata, error) {
@@ -448,7 +393,6 @@ func (r *EntryRetriever) searchIndex(start int64, end int64, key string) (int64,
 	}
 
 	return 0, fmt.Errorf("key %s not found in index", key)
-
 }
 
 func (r *EntryRetriever) searchData(offset int64, key string) (string, error) {
@@ -488,87 +432,5 @@ func readDataEntry(data []byte) (string, string, int, error) {
 	value := data[16+keySize : 16+keySize+valueSize]
 	off += int(valueSize)
 	return string(key), string(value), off, nil
-}
-
-func deserializeMetadataOnly(reader file_reader.FileReader) (Metadata, error) {
-	i := 0
-	initial, readBlocks, err := reader.ReadEntry(i)
-	if err != nil {
-		return Metadata{}, fmt.Errorf("error reading block %d: %v, READ %d blocks", i, err, readBlocks)
-	}
-	i += 1
-
-	mdOffset := bytesToInt(initial[len(initial)-8:])
-
-	totalBlocks, err := reader.GetFileSizeBlocks()
-	if err != nil {
-		return Metadata{}, fmt.Errorf("error getting file size blocks: %v", err)
-	}
-	
-	numOfBlocks := int64(totalBlocks) - mdOffset
-	completedBlocks := make([]byte, 0, int(numOfBlocks)*CONFIG.BlockSize)
-	completedBlocks = append(completedBlocks, initial...)
-	for i < int(numOfBlocks) {
-		block, readBlocks, err := reader.ReadEntry(i)
-		if err != nil {
-			return Metadata{}, fmt.Errorf("error reading block %d: %v", i, err)
-		}
-		completedBlocks = append(block, completedBlocks...)
-		if readBlocks == int(numOfBlocks) {
-			break
-		}
-		i += int(readBlocks)
-	}
-	offsetInBlock := int64(0)
-
-	completedBlocks = append(completedBlocks, initial...)
-	bf_size := bytesToInt(completedBlocks[:8])
-	offsetInBlock += 8
-	bf_data := completedBlocks[offsetInBlock : offsetInBlock+bf_size]
-	offsetInBlock += bf_size
-	//fmt.Print("Bloom filter size: ", bf_size, "\n")
-	bf_pd_size := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
-	offsetInBlock += 8
-	bf_bp_bytes := completedBlocks[offsetInBlock : offsetInBlock+bf_pd_size]
-	offsetInBlock += bf_pd_size
-
-	sum_start_offset := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
-	offsetInBlock += 8
-
-	sum_end_offset := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
-	offsetInBlock += 8
-	blocksInFile, err := reader.GetFileSizeBlocks()
-	if err != nil {
-		return Metadata{}, fmt.Errorf("error getting file size blocks: %v", err)
-	}
-	sum_start_offset = int64(blocksInFile) - sum_start_offset
-	sum_end_offset = int64(blocksInFile) - sum_end_offset
-
-	num_of_items := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
-	offsetInBlock += 8
-
-	merkle_size := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
-	offsetInBlock += 8
-	merkle_data := completedBlocks[offsetInBlock : offsetInBlock+merkle_size]
-	
-	md := Metadata{
-		bf_size:       bf_size,
-		bf_data:       bf_data,
-		bf_pb_size:    bf_pd_size,
-		bf_bp_bytes:   bf_bp_bytes,
-		summary_start: sum_start_offset,
-		summary_end:   sum_end_offset,
-		num_of_items:    num_of_items,
-		merkle_size:   merkle_size,
-		merkle_data:   merkle_data,
-	}
-
-	return md, nil
-}
-
-func loadDataEntry(reader file_reader.FileReader) (int64, string) {
-	// TODO: Implement this function based on your requirements
-	// This should load the next data entry from the reader
-	return 0, ""
 }
 
