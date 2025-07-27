@@ -105,7 +105,7 @@ func (fr *FileReader) readJumboForward(startBlockNum int, initialFlag byte) ([]b
 			break // End of jumbo sequence
 		}
 		readBlocks++
-		currentBlockNum--
+		currentBlockNum++
 	}
 
 	return jumboData, readBlocks + 1, nil

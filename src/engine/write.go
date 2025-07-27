@@ -27,11 +27,7 @@ func (engine *Engine) Write(user string, key string, value string, fromWal bool)
 	}
 
 	write_mem := engine.memtables[engine.curr_mem_index]
-	if value == CONFIG.Tombstone {
-		write_mem.Remove(key)
-	} else {
-		write_mem.Add(key, value)
-	}
+	write_mem.Add(key, value)
 
 	if write_mem.GetSize() >= CONFIG.MemtableSize {
 		engine.SetNextMemtable()
@@ -49,7 +45,8 @@ func (engine *Engine) Write(user string, key string, value string, fromWal bool)
 
 		go func() {
 			<-done // wait for FlushMemtable to finish
-			engine.ss_compacter.CheckCompactionConditions()
+			fmt.Print("Compacting tables...\n")
+			engine.ss_compacter.CheckCompactionConditions(engine.block_manager)
 		}()
 	}
 	return nil

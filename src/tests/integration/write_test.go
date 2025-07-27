@@ -66,7 +66,7 @@ func TestWriteRead(t *testing.T) {
 	blockSize := CONFIG.BlockSize
 	uuidStr := uuid.New().String()
 
-	fileWriter := fw.NewFileWriter(bm, blockSize, "sstable/sstable_"+uuidStr+".db")
+	fileWriter := fw.NewFileWriter(bm, blockSize, "sstable/lvl0/sstable_"+uuidStr+".db")
 	ssParser := ss_parser.NewSSParser(fileWriter)
 
 	// Create a set of key-value pairs
@@ -85,7 +85,7 @@ func TestWriteRead(t *testing.T) {
 
 	retriever := r.NewEntryRetriever(bm)
 
-	res, err := retriever.RetrieveEntry("keyyy1")
+	_, res, err := retriever.RetrieveEntry("keyyy1")
 
 	if err != nil {
 		t.Fatalf("Failed to retrieve entry: %v for metadata: %v", err, res)
@@ -108,7 +108,7 @@ func TestGas(t *testing.T) {
 	retriever := r.NewEntryRetriever(bm)
 
 	// Test retrieving a non-existent entry
-	_, err := retriever.RetrieveEntry("keyyy7")
+	_, _, err := retriever.RetrieveEntry("keyyy7")
 	if err != nil {
 		t.Fatalf("Expected error for non-existent key, got nil")
 	}

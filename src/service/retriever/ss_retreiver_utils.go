@@ -6,6 +6,8 @@ import (
 	"nosqlEngine/src/service/file_reader"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 )
 
 
@@ -132,15 +134,23 @@ func deserializeMetadataOnly(reader file_reader.FileReader) (Metadata, error) {
 
 	return md, nil
 }
-
+func getProjectRoot() string {
+	_, filename, _, _ := runtime.Caller(0)
+	// Go up from src/service/file_writer/writer.go to project root
+	projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(filename))))
+	return projectRoot
+}
 func getFilesFromLevel(level int) []string {
 	var sstablePaths []string
 
-	sstableDir := filepath.ToSlash(filepath.Join("../../../data/sstable"))
+	sstableDir := filepath.ToSlash(filepath.Join(getProjectRoot(), "data/sstable"))
 	sstablePaths = make([]string, 0)
 
 	files, _ := os.ReadDir(sstableDir + "/lvl" + fmt.Sprint(level))
 	for _, file := range files {
+		if !strings.HasSuffix(file.Name(), ".db") {
+			continue
+		}
 		sstablePaths = append(sstablePaths, filepath.Join(sstableDir+"/lvl"+fmt.Sprint(level), file.Name()))
 	}
 

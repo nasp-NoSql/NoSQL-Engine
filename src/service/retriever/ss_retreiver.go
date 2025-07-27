@@ -71,7 +71,7 @@ func NewEntryRetrieverPool(bm *block_manager.BlockManager, tables []string) *Ent
 	for i, table := range tables {
 		fmt.Printf("Initializing reader for table: %s\n", table)
 		fileReaders[i] = *file_reader.NewFileReader(table, CONFIG.BlockSize, *bm)
-		fileReaders[i].SetDirection(false) // Set direction to false for forward reading
+		fileReaders[i].SetDirection(false) // Set default direction to forward
 		md, err := deserializeMetadataOnly(fileReaders[i])
 		if err != nil {
 			fmt.Printf("Error deserializing metadata for %s: %v\n", table, err)
@@ -164,9 +164,17 @@ func (r *EntryRetriever) resetToNextSSTable() bool {
 	return true
 }
 
-func (r *EntryRetriever) RetrieveEntry(key string) (bool, error) {
+func (r *EntryRetriever) RetrieveEntry(key string) (string, bool, error) {
+
+	for i := 0; i < CONFIG.LSMLevels; i++ {
+		r.sstablePaths = getFilesFromLevel(i)
+		r.currentLevel = i
+		if len(r.sstablePaths) > 0 {
+			break
+		}
+	}
 	if len(r.sstablePaths) == 0 {
-		return false, fmt.Errorf("no SSTable files found")
+		return "", false, fmt.Errorf("no SSTable files found")
 	}
 
 	r.currentIndex = 0
@@ -180,7 +188,7 @@ func (r *EntryRetriever) RetrieveEntry(key string) (bool, error) {
 		if err != nil {
 			fmt.Printf("Error deserializing metadata in %s: %v\n", r.sstablePaths[r.currentIndex], err)
 			if !r.resetToNextSSTable() {
-				return false, fmt.Errorf("key %s not found in any SSTable", key)
+				return "",false, fmt.Errorf("key %s not found in any SSTable", key)
 			}
 			continue
 		}
@@ -189,7 +197,7 @@ func (r *EntryRetriever) RetrieveEntry(key string) (bool, error) {
 		if errSum != nil {
 			fmt.Printf("Error deserializing summary in %s: %v\n", r.sstablePaths[r.currentIndex], errSum)
 			if !r.resetToNextSSTable() {
-				return false, fmt.Errorf("key %s not found in any SSTable", key)
+				return "",false, fmt.Errorf("key %s not found in any SSTable", key)
 			}
 			continue
 		}
@@ -203,11 +211,13 @@ func (r *EntryRetriever) RetrieveEntry(key string) (bool, error) {
 				//ending offset is sumArray[i].getOffset()
 				//starting offset is sumArray[i+1].getOffset()
 				totalBlocks, _ := r.fileReader.GetFileSizeBlocks()
+				fmt.Print("Total blocks in file: ", totalBlocks, "\n")
 				endOffset := sumArray[i].getOffset()
 				endOffset = int64(totalBlocks) - endOffset
-				startOffset := sumArray[i+1].getOffset() + 1
-				startOffset = int64(totalBlocks) - startOffset
+				startOffset := sumArray[i+1].getOffset()
+				startOffset = int64(totalBlocks) - startOffset - 1
 
+				fmt.Printf("Searching for key %s in range [%d, %d] in %s\n", key, startOffset, endOffset, r.sstablePaths[r.currentIndex])
 				offset, err := r.searchIndex(startOffset, endOffset, key)
 				if err != nil {
 					fmt.Printf("Error searching index in %s: %v\n", r.sstablePaths[r.currentIndex], err)
@@ -215,16 +225,15 @@ func (r *EntryRetriever) RetrieveEntry(key string) (bool, error) {
 				}
 
 				dataOffset := int64(totalBlocks) - offset - 1
-				if offset == 0 {
-					dataOffset -= 1
-				}
+				
+				fmt.Print("Data offset for key ", key, " is: ", dataOffset, "\n")
 				value, dataErr := r.searchData(dataOffset, key)
 				if dataErr != nil {
 					fmt.Printf("Error searching data in %s: %v\n", r.sstablePaths[r.currentIndex], dataErr)
 					break // Break inner loop, try next SSTable
 				}
 				fmt.Printf("Retrieved value for key %s: %s from %s\n", key, value, r.sstablePaths[r.currentIndex])
-				return true, nil // Found the key, return the value
+				return value, true, nil // Found the key, return the value
 			}
 		}
 
@@ -234,7 +243,7 @@ func (r *EntryRetriever) RetrieveEntry(key string) (bool, error) {
 
 		// Try next SSTable
 		if !r.resetToNextSSTable() {
-			return false, fmt.Errorf("key %s not found in any SSTable", key)
+			return "", false, fmt.Errorf("key %s not found in any SSTable", key)
 		}
 	}
 }
@@ -373,6 +382,7 @@ func (r *EntryRetriever) searchIndex(start int64, end int64, key string) (int64,
 	i := start
 	for i < end {
 		data, readBlocks, err := r.fileReader.ReadEntry(int(i))
+		fmt.Print("indexes are: ", i, " and read blocks: ", readBlocks, "\n")
 		if err != nil {
 			return 0, fmt.Errorf("error reading block %d: %v", i, err)
 		}
@@ -397,6 +407,7 @@ func (r *EntryRetriever) searchIndex(start int64, end int64, key string) (int64,
 
 func (r *EntryRetriever) searchData(offset int64, key string) (string, error) {
 	data, _, err := r.fileReader.ReadEntry(int(offset))
+	fmt.Print("Data read at offset ", offset, ": ", data, "\n")
 	if err != nil {
 		return "", fmt.Errorf("error reading data at offset %d: %v", offset, err)
 	}
@@ -404,12 +415,11 @@ func (r *EntryRetriever) searchData(offset int64, key string) (string, error) {
 	for offsetInBlock < len(data) {
 
 		keyRetrieved, value, off, err := readDataEntry(data[offsetInBlock:])
-		fmt.Print("Key Retrieved: ", keyRetrieved, " Value: ", value, "\n")
 		offsetInBlock += off
 		if err != nil {
 			return "", fmt.Errorf("error reading summary entry: %v", err)
 		}
-		fmt.Print("checking if key matches: ", len(keyRetrieved), " with key: ", len(key), "\n")
+		fmt.Print("checking if key matches: ", keyRetrieved, " with key: ", key, "\n")
 		if keyRetrieved == key {
 			return value, nil // Found the key, return the offset
 		}

@@ -1,6 +1,7 @@
 package ss_compacter
 
 import (
+	"fmt"
 	"nosqlEngine/src/service/retriever"
 )
 
@@ -33,6 +34,7 @@ func getMinValIndex(vals []string) int {
 func removeDuplicateKeys(keys []string, fromIndex int) {
 	for i := fromIndex + 1; i < len(keys); i++ {
 		if keys[fromIndex] == keys[i] {
+			fmt.Printf("Removing duplicate key: %s at index %d\n", keys[i], i)
 			keys[i] = ""
 		}
 	}

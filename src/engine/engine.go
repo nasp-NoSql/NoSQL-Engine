@@ -5,14 +5,13 @@ import (
 	"nosqlEngine/src/config"
 	"nosqlEngine/src/service/block_manager"
 	"nosqlEngine/src/service/file_writer"
+	"nosqlEngine/src/service/retriever"
 	"nosqlEngine/src/service/ss_compacter"
 	"nosqlEngine/src/service/ss_parser"
 	"nosqlEngine/src/service/user_limiter"
 	"nosqlEngine/src/storage/memtable"
 	"nosqlEngine/src/storage/wal"
 	"sync"
-
-	"github.com/google/uuid"
 )
 
 var CONFIG = config.GetConfig()
@@ -24,6 +23,7 @@ type Engine struct {
 	wal            *wal.WAL
 	ss_parser      ss_parser.SSParser
 	ss_compacter   *ss_compacter.SSCompacterST
+	entryRetriever *retriever.EntryRetriever
 	block_manager  *block_manager.BlockManager
 	flush_lock     *sync.Mutex
 }
@@ -40,12 +40,12 @@ func NewEngine() *Engine {
 		fmt.Println("Error creating WAL:", err)
 		return nil
 	}
-	uuidStr := uuid.New().String()
 	return &Engine{
 		userLimiter:    user_limiter.NewUserLimiter(),
 		memtables:      memtables,
-		ss_parser:      ss_parser.NewSSParser(file_writer.NewFileWriter(bm, CONFIG.BlockSize, "sstable/sstable_"+uuidStr+".db")),
+		ss_parser:      ss_parser.NewSSParser(file_writer.NewFileWriter(bm, CONFIG.BlockSize, "")),
 		ss_compacter:   ss_compacter.NewSSCompacterST(),
+		entryRetriever: retriever.NewEntryRetriever(bm),
 		wal:            wal,
 		curr_mem_index: 0,
 		block_manager:  bm,

@@ -27,10 +27,7 @@ func (hmap *HashMap) Get(key string) (string, bool) {
 	value, ok := hmap.data[key]
 	return value, ok
 }
-func (hmap *HashMap) Remove(key string) bool {
-	delete(hmap.data, key)
-	return true
-}
+
 func (hmap *HashMap) ToRaw() []key_value.KeyValue {
 
 	ret := make([]key_value.KeyValue, 0, len(hmap.data))
