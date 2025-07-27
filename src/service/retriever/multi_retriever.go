@@ -79,7 +79,8 @@ func (mr *MultiRetriever) deserializeMetadata(key string) (Metadata, error) {
 	bf_pb_size := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
 	offsetInBlock += 8
 	bf_bp_bytes := completedBlocks[offsetInBlock : offsetInBlock+bf_pb_size]
-
+	fmt.Print("MULTI Bloom Filter Bytes: ", bf_data, "\n")
+	fmt.Print("MULTI Bloom Filter Prefix Bytes: ", len(bf_bp_bytes), "\n")
 	// deser prefix bf
 	prefixBF, errPbf := bloom_filter.DeserializePrefixBloomFilter(bf_bp_bytes)
 	if errPbf != nil {
