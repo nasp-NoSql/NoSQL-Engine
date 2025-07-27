@@ -7,6 +7,7 @@ import (
 	b "nosqlEngine/src/service/block_manager"
 	fw "nosqlEngine/src/service/file_writer"
 	r "nosqlEngine/src/service/retriever"
+	"nosqlEngine/src/service/ss_compacter"
 	"nosqlEngine/src/service/ss_parser"
 	m "nosqlEngine/src/storage/memtable"
 	"testing"
@@ -70,9 +71,9 @@ func TestWriteRead(t *testing.T) {
 
 	// Create a set of key-value pairs
 	for i := 0; i < 1000; i++ {
-		key := fmt.Sprintf("key%d", i+1)
+		key := fmt.Sprintf("keyy%d", i+1)
 
-		value := fmt.Sprintf("value%d", i+1)
+		value := fmt.Sprintf("valueee%d", i+1)
 		mt.Add(key, value)
 
 	}
@@ -90,4 +91,25 @@ func TestWriteRead(t *testing.T) {
 		t.Fatalf("Failed to retrieve entry: %v for metadata: %v", err, res)
 	}
 
+}
+func TestCompacter(t *testing.T) {
+	bm := b.NewBlockManager()
+	sc := ss_compacter.NewSSCompacterST()
+
+	if !sc.CheckCompactionConditions(bm) {
+		t.Fatalf("Compaction conditions not met")
+	}
+
+
+	fmt.Println("Compaction completed successfully")
+}
+func TestGas(t *testing.T) {
+	bm := b.NewBlockManager()
+	retriever := r.NewEntryRetriever(bm)
+
+	// Test retrieving a non-existent entry
+	_, err := retriever.RetrieveEntry("keyy2")
+	if err != nil {
+		t.Fatalf("Expected error for non-existent key, got nil")
+	}
 }

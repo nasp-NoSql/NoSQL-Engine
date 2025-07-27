@@ -2,7 +2,6 @@ package ss_parser
 
 import (
 	"encoding/binary"
-	"fmt"
 	"nosqlEngine/src/config"
 	"nosqlEngine/src/models/key_value"
 	"nosqlEngine/src/service/file_writer"
@@ -37,7 +36,6 @@ func SerializeIndexGetOffsets(keys []string, offsets []int, fw file_writer.FileW
 	for i := 0; i < len(keys); i++ {
 		key := keys[i]
 		offset := offsets[i]
-		fmt.Print("SERIALIZING INDEX: ", key, " at offset: ", offset, "\n")
 		value := append(SizeAndValueToBytes(key), IntToBytes(int64(offset))...)
 		currBlock := fw.Write(value, false, nil)
 

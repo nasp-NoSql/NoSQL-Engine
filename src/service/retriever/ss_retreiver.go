@@ -9,7 +9,6 @@ import (
 	"nosqlEngine/src/service/file_reader"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 type EntryRetriever struct {
@@ -36,7 +35,7 @@ type Metadata struct {
 	bf_bp_bytes   []byte
 	summary_start int64
 	summary_end   int64
-	numOfItems    int64
+	num_of_items    int64
 	merkle_size   int64
 	merkle_data   []byte
 }
@@ -86,21 +85,22 @@ func NewEntryRetriever(bm *block_manager.BlockManager) *EntryRetriever {
 	}
 }
 
-func NewEntryRetrieverPool(bm *block_manager.BlockManager) *EntryRetrieverPool {
-	sstablePaths := initializeSSTablePool()
+func NewEntryRetrieverPool(bm *block_manager.BlockManager, tables []string) *EntryRetrieverPool {
 
-	fileReaders := make([]file_reader.FileReader, len(sstablePaths))
-	readersPerMetadata := make([]Metadata, len(sstablePaths))
-	readCounters := make([]int64, len(sstablePaths))
-	currentBlocks := make([]int64, len(sstablePaths))
-	blockPositions := make([]int, len(sstablePaths))
-	cachedBlocks := make([][]byte, len(sstablePaths))
+	fileReaders := make([]file_reader.FileReader, len(tables))
+	readersPerMetadata := make([]Metadata, len(tables))
+	readCounters := make([]int64, len(tables))
+	currentBlocks := make([]int64, len(tables))
+	blockPositions := make([]int, len(tables))
+	cachedBlocks := make([][]byte, len(tables))
 
-	for i, sstablePath := range sstablePaths {
-		fileReaders[i] = *file_reader.NewFileReader(sstablePath, CONFIG.BlockSize, *bm)
+	for i, table := range tables {
+		fmt.Printf("Initializing reader for table: %s\n", table)
+		fileReaders[i] = *file_reader.NewFileReader(table, CONFIG.BlockSize, *bm)
+		fileReaders[i].SetDirection(false) // Set direction to false for forward reading
 		md, err := deserializeMetadataOnly(fileReaders[i])
 		if err != nil {
-			fmt.Printf("Error deserializing metadata for %s: %v\n", sstablePath, err)
+			fmt.Printf("Error deserializing metadata for %s: %v\n", table, err)
 			readersPerMetadata[i] = Metadata{}
 		} else {
 			readersPerMetadata[i] = md
@@ -116,7 +116,7 @@ func NewEntryRetrieverPool(bm *block_manager.BlockManager) *EntryRetrieverPool {
 
 	return &EntryRetrieverPool{
 		fileReaders:    fileReaders,
-		sstablePaths:   sstablePaths,
+		sstablePaths:   tables,
 		currentIndex:   0,
 		metadata:       readersPerMetadata,
 		readCounters:   readCounters,
@@ -126,13 +126,20 @@ func NewEntryRetrieverPool(bm *block_manager.BlockManager) *EntryRetrieverPool {
 	}
 }
 
+func (ep *EntryRetrieverPool) GetMetadata(index int) *Metadata {
+	if index < 0 || index >= len(ep.metadata) {
+		return nil
+	}
+	return &ep.metadata[index]
+}
+
 func (r *EntryRetrieverPool) ReadNextVal(readerIndex int) (string, string, bool, error) {
 	if readerIndex < 0 || readerIndex >= len(r.fileReaders) {
 		return "", "", false, fmt.Errorf("reader index %d out of range [0, %d)", readerIndex, len(r.fileReaders))
 	}
 
 	// Check if we've reached the limit for this reader
-	if r.readCounters[readerIndex] >= r.metadata[readerIndex].GetNumOfItems() {
+	if r.readCounters[readerIndex] >= r.metadata[readerIndex].Getnum_of_items() {
 		return "", "", true, nil // Return flag indicating limit reached
 	}
 
@@ -178,22 +185,15 @@ func (r *EntryRetrieverPool) loadNextBlock(readerIndex int) error {
 func initializeSSTablePool() []string {
 	var sstablePaths []string
 
-	sstableDir := `..\..\..\data\sstable`
-
-	files, err := os.ReadDir(sstableDir)
-	sstablePaths = make([]string, 0, len(files))
-	if err != nil {
-		fmt.Printf("Error scanning SSTable directory %s: %v\n", sstableDir, err)
-		return []string{}
-	}
-
-	for _, file := range files {
-		if strings.HasSuffix(file.Name(), ".db") && strings.Contains(file.Name(), "sstable_") {
-			sstablePaths = append(sstablePaths, filepath.Join(sstableDir, file.Name()))
+	
+	sstableDir := filepath.ToSlash(filepath.Join("../../../data/sstable"))
+	sstablePaths = make([]string, 0)
+	for i := 1; i < CONFIG.LSMLevels; i++ {
+		files, _ := os.ReadDir(sstableDir+"/lvl" + fmt.Sprint(i))
+		for _, file := range files {
+			sstablePaths = append(sstablePaths, filepath.Join(sstableDir+"/lvl"+fmt.Sprint(i), file.Name()))
 		}
 	}
-
-	fmt.Printf("Found %d SSTable files in %s: %v\n", len(sstablePaths), sstableDir, sstablePaths)
 	return sstablePaths
 }
 
@@ -295,8 +295,8 @@ func (metadata *Metadata) GetSummaryEndOffset() int64 {
 	return metadata.summary_end
 }
 
-func (metadata *Metadata) GetNumOfItems() int64 {
-	return metadata.numOfItems
+func (metadata *Metadata) Getnum_of_items() int64 {
+	return metadata.num_of_items
 }
 func (metadata *Metadata) GetMerkleSize() int64 {
 	return metadata.merkle_size
@@ -370,7 +370,7 @@ func (r *EntryRetriever) deserializeMetadata(key string) (Metadata, error) {
 	sum_start_offset = int64(blocksInFile) - sum_start_offset
 	sum_end_offset = int64(blocksInFile) - sum_end_offset
 
-	numOfItems := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
+	num_of_items := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
 	offsetInBlock += 8
 
 	merkle_size := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
@@ -382,7 +382,7 @@ func (r *EntryRetriever) deserializeMetadata(key string) (Metadata, error) {
 		bf_data:       bf_data,
 		summary_start: sum_start_offset,
 		summary_end:   sum_end_offset,
-		numOfItems:    numOfItems,
+		num_of_items:    num_of_items,
 		merkle_size:   merkle_size,
 		merkle_data:   merkle_data,
 		bf_pb_size:    bf_pb_size,
@@ -393,7 +393,7 @@ func (r *EntryRetriever) deserializeMetadata(key string) (Metadata, error) {
 }
 
 func (r *EntryRetriever) deserializeSummary(metadata Metadata) ([]KeyOffset, error) {
-	sortedSummaryArray := make([]KeyOffset, 0, metadata.GetNumOfItems())
+	sortedSummaryArray := make([]KeyOffset, 0, metadata.Getnum_of_items())
 	i := metadata.summary_start
 
 	for i < metadata.summary_end {
@@ -404,7 +404,7 @@ func (r *EntryRetriever) deserializeSummary(metadata Metadata) ([]KeyOffset, err
 		if err != nil {
 			return nil, err
 		}
-		subArray := make([]KeyOffset, 0, metadata.GetNumOfItems())
+		subArray := make([]KeyOffset, 0, metadata.Getnum_of_items())
 		for offsetInBlock < len(data) {
 			val, offset, off, errorSum := readSummaryIndexEntry(data[offsetInBlock:])
 			offsetInBlock += off
@@ -518,6 +518,7 @@ func deserializeMetadataOnly(reader file_reader.FileReader) (Metadata, error) {
 	if err != nil {
 		return Metadata{}, fmt.Errorf("error getting file size blocks: %v", err)
 	}
+	
 	numOfBlocks := int64(totalBlocks) - mdOffset
 	completedBlocks := make([]byte, 0, int(numOfBlocks)*CONFIG.BlockSize)
 	completedBlocks = append(completedBlocks, initial...)
@@ -539,7 +540,7 @@ func deserializeMetadataOnly(reader file_reader.FileReader) (Metadata, error) {
 	offsetInBlock += 8
 	bf_data := completedBlocks[offsetInBlock : offsetInBlock+bf_size]
 	offsetInBlock += bf_size
-
+	//fmt.Print("Bloom filter size: ", bf_size, "\n")
 	bf_pd_size := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
 	offsetInBlock += 8
 	bf_bp_bytes := completedBlocks[offsetInBlock : offsetInBlock+bf_pd_size]
@@ -557,13 +558,13 @@ func deserializeMetadataOnly(reader file_reader.FileReader) (Metadata, error) {
 	sum_start_offset = int64(blocksInFile) - sum_start_offset
 	sum_end_offset = int64(blocksInFile) - sum_end_offset
 
-	numOfItems := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
+	num_of_items := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
 	offsetInBlock += 8
 
 	merkle_size := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
 	offsetInBlock += 8
 	merkle_data := completedBlocks[offsetInBlock : offsetInBlock+merkle_size]
-
+	
 	md := Metadata{
 		bf_size:       bf_size,
 		bf_data:       bf_data,
@@ -571,7 +572,7 @@ func deserializeMetadataOnly(reader file_reader.FileReader) (Metadata, error) {
 		bf_bp_bytes:   bf_bp_bytes,
 		summary_start: sum_start_offset,
 		summary_end:   sum_end_offset,
-		numOfItems:    numOfItems,
+		num_of_items:    num_of_items,
 		merkle_size:   merkle_size,
 		merkle_data:   merkle_data,
 	}

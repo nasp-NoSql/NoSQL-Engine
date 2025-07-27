@@ -27,6 +27,7 @@ type Config struct {
 	MinPrefixLength              int     `json:"MIN_PREFIX_LENGTH"`
 	MaxPrefixLength              int     `json:"MAX_PREFIX_LENGTH"`
 	SkipListLevels               int     `json:"SKIP_LIST_LEVELS"`
+	CompactionThreshold          int     `json:"COMPACTION_THRESHOLD"`
 }
 
 func GetConfig() Config {
