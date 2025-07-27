@@ -34,7 +34,7 @@ type WALEntry struct {
 //	wal.Delete("data/wal/wal-20250625.log")
 type WAL struct {
 	//file        *os.File
-	buffer      [][]byte                // changed from []string to [][]byte
+	buffer      []WALEntry              // changed from []string to []WALEntry
 	bufferSize  int                     // buffer pool size
 	segmentSize int                     // size of each segment in bytes
 	writer      *file_writer.FileWriter // add FileWriter for block writing
@@ -49,7 +49,7 @@ func NewWAL(block_manager *block_manager.BlockManager) (*WAL, error) {
 	bufferSize := CONFIG.WALBufferSize                                                             // default buffer size
 	segmentSize := CONFIG.WALSegmentSize                                                           // default segment size in bytes
 	writer := file_writer.NewFileWriter(block_manager, CONFIG.BlockSize, generateWALSegmentName()) // Create a new FileWriter with the segment size
-	return &WAL{buffer: make([][]byte, 0, bufferSize), bufferSize: bufferSize, segmentSize: segmentSize, writer: writer}, nil
+	return &WAL{buffer: make([]WALEntry, 0, bufferSize), bufferSize: bufferSize, segmentSize: segmentSize, writer: writer}, nil
 }
 
 // encodeWALEntry encodes a WALEntry into the binary WAL format
@@ -97,11 +97,13 @@ func (w *WAL) WritePut(key, value string) error {
 		Value:     value,
 		Timestamp: time.Now().Unix(),
 	}
-	data, err := encodeWALEntry(entry)
-	if err != nil {
-		return err
-	}
-	w.buffer = append(w.buffer, data)
+	// data, err := encodeWALEntry(entry)
+	// if err != nil {
+	// 	return err
+	// }
+	// w.buffer = append(w.buffer, data)
+	//fmt.Print(w.buffer[0])
+	w.buffer = append(w.buffer, entry)
 	if len(w.buffer) >= w.bufferSize {
 		return w.Flush()
 	}
@@ -116,11 +118,11 @@ func (w *WAL) WriteDelete(key string) error {
 		Value:     "",
 		Timestamp: time.Now().Unix(),
 	}
-	data, err := encodeWALEntry(entry)
-	if err != nil {
-		return err
-	}
-	w.buffer = append(w.buffer, data)
+	// data, err := encodeWALEntry(entry)
+	// if err != nil {
+	// 	return err
+	// }
+	w.buffer = append(w.buffer, entry)
 	if len(w.buffer) >= w.bufferSize {
 		return w.Flush()
 	}
@@ -159,14 +161,19 @@ func (w *WAL) Flush() error {
 		return nil
 	}
 	for _, entry := range w.buffer {
+		data, err := encodeWALEntry(entry)
+		if err != nil {
+			return err
+		}
 		if w.writer != nil {
-			w.writer.Write(entry, false, nil)
+			w.writer.Write(data, false, nil)
 			// If the segment size is reached, archive the current WAL segment
 		} else {
 			return nil
 		}
 	}
 	size, err := getFileSize(w.writer.GetLocation())
+	fmt.Print(size)
 	if err != nil {
 		return err
 	}
@@ -194,20 +201,25 @@ func getFileSize(path string) (int64, error) {
 // }
 
 func (w *WAL) Rotate() error {
-	w.writer.SetLocation(generateWALSegmentName())
-	w.buffer = make([][]byte, 0, w.bufferSize)
+	// w.writer.SetLocation(generateWALSegmentName())
+	blockManager := block_manager.NewBlockManager()
+	w.writer = file_writer.NewFileWriter(blockManager, CONFIG.BlockSize, generateWALSegmentName())
+	w.buffer = make([]WALEntry, 0, w.bufferSize)
 	return nil
 }
 
 // Helper to generate a rotated WAL filename with timestamp
 
 func generateWALSegmentName() string {
-	return fmt.Sprintf("wal/wal-%s.log", time.Now().Format("20060102-150405"))
+	return fmt.Sprintf("wal/wal-%s.log", time.Now().Format("20060102-150405.000000000"))
 }
 
 // Helper to read and parse a single WAL entry from the file
 func readWALEntry(reader *file_reader.FileReader, blockNum int) (*WALEntry, uint32, []byte, int, error) {
 	content, blocksUsed, _ := reader.ReadEntry(blockNum)
+	if len(content) == 0 {
+		return nil, 0, nil, 0, io.EOF // No more entries
+	}
 
 	crc := binary.LittleEndian.Uint32(content[0:4])
 	ts := int64(binary.LittleEndian.Uint64(content[4:12]))
@@ -234,7 +246,7 @@ func readWALEntry(reader *file_reader.FileReader, blockNum int) (*WALEntry, uint
 }
 
 func GetWALSegmentPaths() ([]string, error) {
-	walDir := "data/wal"
+	walDir := "../../../data/wal"
 	files, err := os.ReadDir(walDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read WAL directory: %w", err)
@@ -254,6 +266,7 @@ func ReplayWAL(block_manager *block_manager.BlockManager) ([]WALEntry, error) {
 	reader := file_reader.NewFileReader("", CONFIG.BlockSize, *block_manager)
 	// Get the list of WAL segment files
 	segmentPaths, err := GetWALSegmentPaths()
+	fmt.Println(segmentPaths)
 	if err != nil {
 		return nil, err
 	}

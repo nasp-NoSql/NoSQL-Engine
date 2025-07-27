@@ -10,6 +10,7 @@ import (
 	"nosqlEngine/src/service/ss_compacter"
 	"nosqlEngine/src/service/ss_parser"
 	m "nosqlEngine/src/storage/memtable"
+	wal "nosqlEngine/src/storage/wal"
 	"testing"
 
 	"github.com/google/uuid"
@@ -92,6 +93,68 @@ func TestWriteRead(t *testing.T) {
 	}
 
 }
+
+func TestPrefixScan(t *testing.T) {
+	mt := m.NewMemtable()
+	bm := b.NewBlockManager()
+	blockSize := CONFIG.BlockSize
+	uuidStr := uuid.New().String()
+
+	fileWriter := fw.NewFileWriter(bm, blockSize, "sstable/sstable_"+uuidStr+".db")
+	ssParser := ss_parser.NewSSParser(fileWriter)
+
+	// Create a set of key-value pairs
+	for i := 0; i < 1000; i++ {
+		key := fmt.Sprintf("key%d", i+1)
+
+		value := fmt.Sprintf("valueee%d", i+1)
+		mt.Add(key, value)
+
+	}
+
+	// Write the memtable to disk via the parser and file writer
+	ssParser.FlushMemtable(mt.ToRaw())
+	fmt.Print(
+		"File written successfully, now reading the data back...\n")
+
+	multiRetriever := r.NewMultiRetriever(bm)
+	results, err := multiRetriever.GetPrefixEntries("key1")
+	if err != nil {
+		t.Fatalf("Failed to retrieve prefix entries: %v", err)
+	}
+	fmt.Printf("Retrieved %d entries with prefix 'key1':\n", len(results))
+	fmt.Println("Entries:", results)
+}
+
+func TestWALWriteRead(t *testing.T) {
+	bm := b.NewBlockManager()
+	log, err := wal.NewWAL(bm)
+	if err != nil {
+		t.Fatalf("Failed to create WAL: %v", err)
+	}
+
+	// Write some entries to the WAL
+	for i := 0; i < 30; i++ {
+		key := fmt.Sprintf("key%d", i+1)
+		value := fmt.Sprintf("value%d", i+1)
+		if err := log.WritePut(key, value); err != nil {
+			t.Fatalf("Failed to write entry to WAL: %v", err)
+		}
+	}
+
+	fmt.Println("WAL written successfully, now reading the data back...")
+
+	recoveredEntries, err := wal.ReplayWAL(bm)
+	fmt.Println(recoveredEntries)
+	if err != nil {
+		t.Fatalf("Failed to replay WAL: %v", err)
+	}
+	for _, entry := range recoveredEntries {
+		fmt.Printf("Recovered entry: Operation=%s, Key=%s, Value=%s, Timestamp=%d\n",
+			entry.Operation, entry.Key, entry.Value, entry.Timestamp)
+	}
+}
+
 func TestCompacter(t *testing.T) {
 	bm := b.NewBlockManager()
 	sc := ss_compacter.NewSSCompacterST()
@@ -99,7 +162,6 @@ func TestCompacter(t *testing.T) {
 	if !sc.CheckCompactionConditions(bm) {
 		t.Fatalf("Compaction conditions not met")
 	}
-
 
 	fmt.Println("Compaction completed successfully")
 }
