@@ -100,7 +100,7 @@ func TestPrefixScan(t *testing.T) {
 	blockSize := CONFIG.BlockSize
 	uuidStr := uuid.New().String()
 
-	fileWriter := fw.NewFileWriter(bm, blockSize, "sstable/sstable_"+uuidStr+".db")
+	fileWriter := fw.NewFileWriter(bm, blockSize, "sstable/lvl0/sstable_"+uuidStr+".db")
 	ssParser := ss_parser.NewSSParser(fileWriter)
 
 	// Create a set of key-value pairs
