@@ -10,7 +10,6 @@ import (
 	"strings"
 )
 
-
 type Metadata struct {
 	bf_size       int64
 	bf_data       []byte
@@ -18,7 +17,7 @@ type Metadata struct {
 	bf_bp_bytes   []byte
 	summary_start int64
 	summary_end   int64
-	num_of_items    int64
+	num_of_items  int64
 	merkle_size   int64
 	merkle_data   []byte
 }
@@ -73,7 +72,7 @@ func deserializeMetadataOnly(reader file_reader.FileReader) (Metadata, error) {
 	if err != nil {
 		return Metadata{}, fmt.Errorf("error getting file size blocks: %v", err)
 	}
-	
+
 	numOfBlocks := int64(totalBlocks) - mdOffset
 	completedBlocks := make([]byte, 0, int(numOfBlocks)*CONFIG.BlockSize)
 	completedBlocks = append(completedBlocks, initial...)
@@ -119,7 +118,7 @@ func deserializeMetadataOnly(reader file_reader.FileReader) (Metadata, error) {
 	merkle_size := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
 	offsetInBlock += 8
 	merkle_data := completedBlocks[offsetInBlock : offsetInBlock+merkle_size]
-	
+
 	md := Metadata{
 		bf_size:       bf_size,
 		bf_data:       bf_data,
@@ -127,7 +126,7 @@ func deserializeMetadataOnly(reader file_reader.FileReader) (Metadata, error) {
 		bf_bp_bytes:   bf_bp_bytes,
 		summary_start: sum_start_offset,
 		summary_end:   sum_end_offset,
-		num_of_items:    num_of_items,
+		num_of_items:  num_of_items,
 		merkle_size:   merkle_size,
 		merkle_data:   merkle_data,
 	}
