@@ -108,10 +108,9 @@ func NewEntryRetrieverPool(bm *block_manager.BlockManager, tables []string) *Ent
 		readCounters[i] = 0 // Initialize read counter
 
 		// Initialize reading state - start from the beginning of data section
-		totalBlocks, _ := fileReaders[i].GetFileSizeBlocks()
-		currentBlocks[i] = int64(totalBlocks) - readersPerMetadata[i].summary_start // Start after summary
-		blockPositions[i] = 0                                                       // Start at beginning of block
-		cachedBlocks[i] = nil                                                       // No cached block initially
+		currentBlocks[i] = 0 // Start from block 0
+		blockPositions[i] = 0 // Start at beginning of block
+		cachedBlocks[i] = nil // No cached block initially
 	}
 
 	return &EntryRetrieverPool{
@@ -134,33 +133,19 @@ func (ep *EntryRetrieverPool) GetMetadata(index int) *Metadata {
 }
 
 func (r *EntryRetrieverPool) ReadNextVal(readerIndex int) (string, string, bool, error) {
-	if readerIndex < 0 || readerIndex >= len(r.fileReaders) {
-		return "", "", false, fmt.Errorf("reader index %d out of range [0, %d)", readerIndex, len(r.fileReaders))
-	}
 
-	// Check if we've reached the limit for this reader
-	if r.readCounters[readerIndex] >= r.metadata[readerIndex].Getnum_of_items() {
-		return "", "", true, nil // Return flag indicating limit reached
-	}
-
-	// Check if we need to load a new block
-	if r.cachedBlocks[readerIndex] == nil || r.blockPositions[readerIndex] >= len(r.cachedBlocks[readerIndex]) {
+	//check the if there is a cached block
+	if r.cachedBlocks[readerIndex] == nil || r.blockPositions[readerIndex] >= len(r.cachedBlocks[readerIndex])-16 {
 		err := r.loadNextBlock(readerIndex)
 		if err != nil {
 			return "", "", false, fmt.Errorf("error loading next block: %v", err)
 		}
 	}
-
-	// Read the next entry from the cached block
 	key, value, bytesRead, err := readDataEntry(r.cachedBlocks[readerIndex][r.blockPositions[readerIndex]:])
+	r.blockPositions[readerIndex] += bytesRead
 	if err != nil {
 		return "", "", false, fmt.Errorf("error reading data entry: %v", err)
 	}
-
-	// Update position and counter
-	r.blockPositions[readerIndex] += bytesRead
-	r.readCounters[readerIndex]++
-
 	return key, value, false, nil
 }
 
@@ -168,6 +153,7 @@ func (r *EntryRetrieverPool) loadNextBlock(readerIndex int) error {
 	reader := r.fileReaders[readerIndex]
 
 	// Read the block at current position
+	reader.SetDirection(true)
 	data, readBlocks, err := reader.ReadEntry(int(r.currentBlocks[readerIndex]))
 	if err != nil {
 		return fmt.Errorf("error reading block %d: %v", r.currentBlocks[readerIndex], err)
@@ -585,3 +571,4 @@ func loadDataEntry(reader file_reader.FileReader) (int64, string) {
 	// This should load the next data entry from the reader
 	return 0, ""
 }
+

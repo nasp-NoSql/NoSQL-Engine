@@ -64,8 +64,10 @@ func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWrit
 	totalItems := 0                                    // total number of items across all tables
 	for i := range tables {
 		counts[i] = int(pool.GetMetadata(i).Getnum_of_items())
+		em:= fmt.Errorf("Error getting metadata for table")
 		totalItems += counts[i]
-		currKeys[i], currValues[i], _, _ = pool.ReadNextVal(i) // Read the first key and value from each table
+		currKeys[i], currValues[i], _, em = pool.ReadNextVal(i) // Read the first key and value from each table
+		fmt.Print(em)
 	}
 	fmt.Print(currKeys)
 
