@@ -14,7 +14,18 @@ type MultiRetriever struct {
 }
 
 func NewMultiRetriever(bm *block_manager.BlockManager) *MultiRetriever {
-	sstablePaths := initializeSSTablePool()
+	sstablePaths := make([]string, 0)
+	// Get all SSTable files from all levels
+	for i := 0; i < CONFIG.LSMLevels; i++ {
+		sstablePaths = append(sstablePaths, getFilesFromLevel(i)...)
+	}
+	if len(sstablePaths) == 0 {
+		return &MultiRetriever{
+			fileReader:   file_reader.FileReader{},
+			sstablePaths: sstablePaths,
+			currentIndex: 0,
+		}
+	}
 
 	// Create a single block manager and file reader instance
 	var fileReader file_reader.FileReader
@@ -79,7 +90,8 @@ func (mr *MultiRetriever) deserializeMetadata(key string) (Metadata, error) {
 	bf_pb_size := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
 	offsetInBlock += 8
 	bf_bp_bytes := completedBlocks[offsetInBlock : offsetInBlock+bf_pb_size]
-
+	fmt.Print("MULTI Bloom Filter Bytes: ", bf_data, "\n")
+	fmt.Print("MULTI Bloom Filter Prefix Bytes: ", len(bf_bp_bytes), "\n")
 	// deser prefix bf
 	prefixBF, errPbf := bloom_filter.DeserializePrefixBloomFilter(bf_bp_bytes)
 	if errPbf != nil {

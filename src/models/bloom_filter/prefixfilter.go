@@ -48,6 +48,13 @@ func (pf *PrefixBloomFilter) Add(key string) {
 	}
 }
 
+func (pf *PrefixBloomFilter) AddMultiple(keys []string) []byte {
+	for _, key := range keys {
+		pf.Add(key)
+	}
+	return pf.filter.GetArray()
+}
+
 func (pf *PrefixBloomFilter) Contains(prefix string) bool {
 	prefixLen := len(prefix)
 
