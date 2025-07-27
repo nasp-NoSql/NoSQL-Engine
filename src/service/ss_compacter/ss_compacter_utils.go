@@ -1,6 +1,9 @@
 package ss_compacter
 
-import "nosqlEngine/src/service/retriever"
+import (
+	"fmt"
+	"nosqlEngine/src/service/retriever"
+)
 
 func updateValsAndCounts(keys []string, vals []string, counts []int, pool *retriever.EntryRetrieverPool) {
 	for i := 0; i < len(vals); i++ {
@@ -15,22 +18,23 @@ func updateValsAndCounts(keys []string, vals []string, counts []int, pool *retri
 	}
 }
 func getMinValIndex(vals []string) int {
-	minVal := vals[0]
-	minIdx := 0
+	minVal := ""
+	minIdx := -1
 	for i, val := range vals {
 		if val == "" {
 			continue
 		}
-		if val < minVal {
+		if val < minVal || minIdx == -1 {
 			minVal = val
 			minIdx = i
 		}
 	}
 	return minIdx
 }
-func removeDuplicateKeys(keys []string, fromIndex int, pool *retriever.EntryRetrieverPool) {
+func removeDuplicateKeys(keys []string, fromIndex int) {
 	for i := fromIndex + 1; i < len(keys); i++ {
 		if keys[fromIndex] == keys[i] {
+			fmt.Printf("Removing duplicate key: %s at index %d\n", keys[i], i)
 			keys[i] = ""
 		}
 	}

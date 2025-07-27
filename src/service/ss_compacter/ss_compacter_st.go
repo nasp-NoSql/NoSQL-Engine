@@ -10,6 +10,7 @@ import (
 	"nosqlEngine/src/service/ss_parser"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/google/uuid"
@@ -24,31 +25,44 @@ func NewSSCompacterST() *SSCompacterST {
 	return &SSCompacterST{}
 }
 
+func getProjectRoot() string {
+	_, filename, _, _ := runtime.Caller(0)
+	// Go up from src/service/file_writer/writer.go to project root
+	projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(filename))))
+	return projectRoot
+}
+
+func getFilesFromLevel(level int) []string {
+	var sstablePaths []string
+
+	sstableDir := filepath.ToSlash(filepath.Join(getProjectRoot(), "data/sstable"))
+	sstablePaths = make([]string, 0)
+
+	files, _ := os.ReadDir(sstableDir + "/lvl" + fmt.Sprint(level))
+	for _, file := range files {
+		if !strings.HasSuffix(file.Name(), ".db") {
+			continue
+		}
+		sstablePaths = append(sstablePaths, filepath.Join(sstableDir+"/lvl"+fmt.Sprint(level), file.Name()))
+	}
+
+	return sstablePaths
+}
 func (sc *SSCompacterST) CheckCompactionConditions(bm *block_manager.BlockManager) bool {
-	baseDir := "../../../"+CONFIG.LSMBaseDir
 	level := 0
 	compacted := false
 	for level < CONFIG.LSMLevels {
-		lvlDir := filepath.Join(baseDir, fmt.Sprintf("lvl%d", level))
-		files, err := os.ReadDir(lvlDir)
-		if err != nil {
-			// If the directory doesn't exist, stop
-			break
-		}
-		var sstFiles []string
+		sstFiles := getFilesFromLevel(level)
 
-		for _, f := range files {
-			if !f.IsDir() && (strings.HasSuffix(f.Name(), ".db") || strings.HasSuffix(f.Name(), ".sst")) {
-				sstFiles = append(sstFiles, filepath.Join(lvlDir, f.Name()))
-			}
-		}
 		for len(sstFiles) >= CONFIG.CompactionThreshold && level < CONFIG.LSMLevels {
 			toCompact := sstFiles[:CONFIG.CompactionThreshold]
 			sstFiles = sstFiles[CONFIG.CompactionThreshold:]
-			// You may need to create a FileWriter for the next level here
 			lvlDir := fmt.Sprintf("lvl%d", level+1)
 			fw := file_writer.NewFileWriter(bm, CONFIG.BlockSize, "sstable/"+lvlDir+"/sstable_"+uuid.New().String()+".db")
 			sc.compactTables(toCompact, fw, bm)
+			for _, file := range toCompact {
+				os.Remove(file)
+			}
 			compacted = true
 		}
 		level++
@@ -64,13 +78,10 @@ func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWrit
 	totalItems := 0                                    // total number of items across all tables
 	for i := range tables {
 		counts[i] = int(pool.GetMetadata(i).Getnum_of_items())
-		em:= fmt.Errorf("Error getting metadata for table")
 		totalItems += counts[i]
-		currKeys[i], currValues[i], _, em = pool.ReadNextVal(i) // Read the first key and value from each table
-		fmt.Print(em)
+		currKeys[i], currValues[i], _, _ = pool.ReadNextVal(i) // Read the first key and value from each table
 	}
-	fmt.Print(currKeys)
-
+	// For Index
 	keys := []string{}
 	blockOffsets := []int{}
 	currBlockOffset := -1
@@ -79,7 +90,8 @@ func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWrit
 	// merkle := merkle_tree.InitializeMerkleTree(totalItems)
 	for !areAllValuesZero(counts) {
 		minIndex := getMinValIndex(currKeys)
-		removeDuplicateKeys(currKeys, minIndex, pool)
+		fmt.Printf("Current keys: %v\n", currKeys)
+		removeDuplicateKeys(currKeys, minIndex)
 		bloom.Add(currKeys[minIndex])
 		// merkle.AddLeaf(string(keyBytes[minIndex]), valBytes) // Add to Merkle tree
 		fullVal := append(ss_parser.SizeAndValueToBytes(currKeys[minIndex]), ss_parser.SizeAndValueToBytes(currValues[minIndex])...)
@@ -88,16 +100,13 @@ func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWrit
 			currBlockOffset = newBlockOffset
 			keys = append(keys, currKeys[minIndex])
 			blockOffsets = append(blockOffsets, currBlockOffset)
-
 		}
 		currKeys[minIndex] = "" 
 		updateValsAndCounts(currKeys, currValues, counts, pool)
 	}
-
 	fw.Write(nil, true, nil) // Write end of file marker
 	summaryKeys, summaryOffsets := ss_parser.SerializeIndexGetOffsets(keys, blockOffsets, fw) // Write index offsets
 	initialSummaryOffset := fw.Write(nil, true, nil)
-
 	ss_parser.SerializeSummary(summaryKeys, summaryOffsets, fw)
 	prefixFilter := bloom_filter.NewPrefixBloomFilter()
 

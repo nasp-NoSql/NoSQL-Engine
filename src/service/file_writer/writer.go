@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"nosqlEngine/src/service/block_manager"
 	"path/filepath"
+	"runtime"
+
+	"github.com/google/uuid"
 )
 
 type FileWriter struct {
@@ -16,8 +19,21 @@ type FileWriter struct {
 	allDataWritten  []byte
 }
 
+func getProjectRoot() string {
+	_, filename, _, _ := runtime.Caller(0)
+	// Go up from src/service/file_writer/writer.go to project root
+	projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(filename))))
+	return projectRoot
+}
+
 func NewFileWriter(bm *block_manager.BlockManager, blockSize int, name string) *FileWriter {
-	location := filepath.ToSlash(filepath.Join("../../../data/" + name))
+	if name == "" {
+		name = generateFileName(0) // Default name if not provided
+	}
+	projectRoot := getProjectRoot()
+	dataPath := filepath.Join(projectRoot, "data")
+	location := filepath.Join(dataPath, name)
+	fmt.Print("Location of file writer: ", location, "\n")
 	return &FileWriter{
 		block_manager:   *bm,
 		location:        location,
@@ -29,9 +45,8 @@ func NewFileWriter(bm *block_manager.BlockManager, blockSize int, name string) *
 	}
 }
 
-func (fw *FileWriter) GenerateNewLocation(name string) string {
-	// Generate a new location for the file writer
-	return filepath.ToSlash(filepath.Join("../../../data/" + name))
+func generateFileName(level int) string {
+	return fmt.Sprintf("sstable/lvl%d/sstable_%s.db", level, uuid.New().String())
 }
 
 func (fw *FileWriter) Write(data []byte, sectionEnd bool, size []byte) int {
@@ -224,15 +239,26 @@ func (fw *FileWriter) FlushWithSize(size []byte) {
 func (fw *FileWriter) GetAllDataWritten() []byte {
 	return fw.allDataWritten
 }
-
 func (fw *FileWriter) GetLocation() string {
 	return fw.location
 }
-
 func (fw *FileWriter) GetCurrentBlockNum() int {
 	return fw.currentBlockNum
 }
-
 func (fw *FileWriter) SetLocation(location string) {
+	fw.location = location
+}
+
+func (fw *FileWriter) ResetFileWriter(name string) {
+	if name == "" {
+		name = generateFileName(0) // Default name if not provided
+	}
+	projectRoot := getProjectRoot()
+	dataPath := filepath.Join(projectRoot, "data")
+	location := filepath.Join(dataPath, name)
+	fw.currentBlock = make([]byte, 0, fw.blockSize)
+	fw.currentBlockNum = 0
+	fw.offsetInBlock = 0
+	fw.allDataWritten = make([]byte, 0)
 	fw.location = location
 }

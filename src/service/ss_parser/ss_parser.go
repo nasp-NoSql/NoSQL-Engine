@@ -31,4 +31,7 @@ func (ssParser *SSParserImpl) FlushMemtable(data []key_value.KeyValue) {
 	prefixFilter := bloom_filter.NewPrefixBloomFilter()
 	bt_pbf, _ := prefixFilter.SerializeToByteArray()
 	SerializeMetaData(ssParser.fileWriter.Write(nil, true, nil), bt_bf, make([]byte, 0), len(data), ssParser.fileWriter, initialSummaryOffset, bt_pbf)
+
+	// Reset the file writer for the next flush
+	ssParser.fileWriter.ResetFileWriter("")
 }
