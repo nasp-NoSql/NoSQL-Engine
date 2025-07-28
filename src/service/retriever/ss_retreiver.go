@@ -166,7 +166,7 @@ func (r *EntryRetriever) resetToNextSSTable() bool {
 
 func (r *EntryRetriever) RetrieveEntry(key string) (string, bool, error) {
 
-	for i := 0; i < CONFIG.LSMLevels; i++ {
+	for i := 0; i <= CONFIG.LSMLevels; i++ {
 		r.sstablePaths = getFilesFromLevel(i)
 		r.currentLevel = i
 		if len(r.sstablePaths) > 0 {
