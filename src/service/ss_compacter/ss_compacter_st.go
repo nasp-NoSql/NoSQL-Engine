@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"nosqlEngine/src/config"
 	"nosqlEngine/src/models/bloom_filter"
+	"nosqlEngine/src/models/merkle_tree"
 	"nosqlEngine/src/service/block_manager"
 	"nosqlEngine/src/service/file_writer"
 	"nosqlEngine/src/service/retriever"
@@ -69,14 +70,17 @@ func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWrit
 	currBlockOffset := -1
 
 	bloom := bloom_filter.NewBloomFilterWithParams(totalItems, 0.01) // 1% false positive rate
-	// merkle := merkle_tree.InitializeMerkleTree(totalItems)
+	merkleTree := merkle_tree.InitializeMerkleTree(totalItems)
 	for !areAllValuesZero(counts) {
 		minIndex := getMinValIndex(currKeys, currValues)
 		removeDuplicateKeys(currKeys, minIndex)
+
 		bloom.Add(currKeys[minIndex])
-		// merkle.AddLeaf(string(keyBytes[minIndex]), valBytes) // Add to Merkle tree
+		merkleTree.AddLeaf(currValues[minIndex]) 
+
 		fullVal := append(ss_parser.SizeAndValueToBytes(currKeys[minIndex]), ss_parser.SizeAndValueToBytes(currValues[minIndex])...)
 		newBlockOffset := fw.Write(fullVal, false, nil)
+
 		if currBlockOffset != newBlockOffset {
 			currBlockOffset = newBlockOffset
 			keys = append(keys, currKeys[minIndex])
@@ -86,12 +90,14 @@ func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWrit
 		updateValsAndCounts(currKeys, currValues, counts, pool)
 	}
 	fw.Write(nil, true, nil) // Write end of file marker
+
 	summaryKeys, summaryOffsets := ss_parser.SerializeIndexGetOffsets(keys, blockOffsets, fw) // Write index offsets
 	initialSummaryOffset := fw.Write(nil, true, nil)
 	ss_parser.SerializeSummary(summaryKeys, summaryOffsets, fw)
-	prefixFilter := bloom_filter.NewPrefixBloomFilter()
 
+	prefixFilter := bloom_filter.NewPrefixBloomFilter()
 	bt_pbf, _ := prefixFilter.SerializeToByteArray()
-	bt_bf, _ := bloom.SerializeToByteArray()          
-	ss_parser.SerializeMetaData(fw.Write(nil, true, nil), bt_bf, make([]byte, 0), totalItems, fw, initialSummaryOffset, bt_pbf) // Write metadata
+	bt_bf, _ := bloom.SerializeToByteArray()
+	merkleRoot := merkleTree.GetRootBytes()
+	ss_parser.SerializeMetaData(fw.Write(nil, true, nil), bt_bf, merkleRoot, totalItems, fw, initialSummaryOffset, bt_pbf) // Write metadata
 }

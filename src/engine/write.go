@@ -28,7 +28,8 @@ func (engine *Engine) Write(user string, key string, value string, fromWal bool)
 
 	write_mem := engine.memtables[engine.curr_mem_index]
 	write_mem.Add(key, value)
-
+	fmt.Print("Memtable size after write: ", write_mem.GetSize(), "\n")
+	fmt.Print(CONFIG.MemtableSize, "\n")
 	if write_mem.GetSize() >= CONFIG.MemtableSize && !fromWal {
 		engine.SetNextMemtable()
 		done := make(chan struct{})
