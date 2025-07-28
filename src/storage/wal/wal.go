@@ -10,6 +10,7 @@ import (
 	"nosqlEngine/src/service/block_manager"
 	"nosqlEngine/src/service/file_reader"
 	"nosqlEngine/src/service/file_writer"
+	"nosqlEngine/src/utils"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -98,13 +99,8 @@ func (w *WAL) WritePut(key, value string) error {
 		Value:     value,
 		Timestamp: time.Now().Unix(),
 	}
-	// data, err := encodeWALEntry(entry)
-	// if err != nil {
-	// 	return err
-	// }
-	// w.buffer = append(w.buffer, data)
-	//fmt.Print(w.buffer[0])
 	w.buffer = append(w.buffer, entry)
+
 	fmt.Print("Writing PUT entry: ", entry,  "and buffer size: ", len(w.buffer), "\n")
 	if len(w.buffer) >= w.bufferSize {
 		return w.Flush()
@@ -131,44 +127,17 @@ func (w *WAL) WriteDelete(key string) error {
 	return nil
 }
 
-// // Archive moves a WAL file to an archive directory
-// func (w *WAL) Archive(archivePath string) error {
-// 	if err := os.MkdirAll(filepath.Dir(archivePath), 0755); err != nil {
-// 		return err
-// 	}
-// 	src, err := os.Open(w.writer.GetLocation())
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer src.Close()
-// 	archive, err := os.Create(archivePath)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer archive.Close()
-// 	_, err = io.Copy(archive, src)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	os.Truncate(w.writer.GetLocation(), 0) // Clear the original WAL file after archiving
-// 	if err := src.Close(); err != nil {
-// 		return err
-// 	}
-// 	return nil
-// }
-
-// Flush writes the buffer to disk and clears it
 func (w *WAL) Flush() error {
 	if len(w.buffer) == 0 {
 		return nil
 	}
 	for _, entry := range w.buffer {
+		fmt.Print("Writing entry to WAL at KURCINA: ", w.writer.GetLocation(), "\n")
 		data, err := encodeWALEntry(entry)
 		if err != nil {
 			return err
 		}
 		if w.writer != nil {
-
 			w.writer.Write(data, false, nil)
 			// If the segment size is reached, archive the current WAL segment
 		} else {
@@ -248,17 +217,7 @@ func readWALEntry(reader *file_reader.FileReader, blockNum int) (*WALEntry, uint
 }
 
 func GetWALSegmentPaths() ([]string, error) {
-	walDir := filepath.ToSlash(filepath.Join(getProjectRoot(), "data/wal"))
-	files, err := os.ReadDir(walDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read WAL directory: %w", err)
-	}
-	var segmentPaths []string
-	for _, file := range files {
-		if !file.IsDir() && file.Name() != "current-wal.log" {
-			segmentPaths = append(segmentPaths, filepath.Join(walDir, file.Name()))
-		}
-	}
+	segmentPaths := utils.GetPaths("data/wal", ".log")
 	return segmentPaths, nil
 }
 func getProjectRoot() string {
