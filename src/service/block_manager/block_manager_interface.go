@@ -1,7 +1,6 @@
 package block_manager
 
-type BlockManager interface {
-	WriteBlocks(data []byte, filename string) bool
-
-	ReadBlock(blockId int, filename string) ([]byte, error)
+type BlockManagerInterface interface {
+	WriteBlock(location string, blockNumber int, data []byte) error
+	ReadBlock(location string, blockNumber int) ([]byte, error)
 }

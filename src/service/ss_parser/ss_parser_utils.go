@@ -4,90 +4,81 @@ import (
 	"encoding/binary"
 	"nosqlEngine/src/config"
 	"nosqlEngine/src/models/key_value"
+	"nosqlEngine/src/service/file_writer"
 )
 
 var CONFIG = config.GetConfig()
 
-
-func serializeDataGetOffsets(keyValues []key_value.KeyValue) ([]byte, []string, []int64) {
-
-	currOffset := int64(0)
-	keys := []string{keyValues[0].GetKey()}
-	offsets := []int64{currOffset}
-	dataBytes := []byte{}
-	currBlockSize := 0
-
+func SerializeDataGetOffsets(fw file_writer.FileWriterInterface, keyValues []key_value.KeyValue) ([]string, []int) {
+	keys := make([]string, len(keyValues))
+	offsets := make([]int, len(keyValues))
 	for i := 0; i < len(keyValues); i++ {
-		// key and value blocks
-		value := append(sizeAndValueToBytes(keyValues[i].GetKey()), sizeAndValueToBytes(keyValues[i].GetValue())...)
-
-		if currBlockSize >= CONFIG.BlockSize { // if last value got over block size, this key starts a new block
-			keys = append(keys, keyValues[i].GetKey())
-			offsets = append(offsets, currOffset)
-			currBlockSize = currBlockSize % CONFIG.BlockSize + len(value)
-		} else{
-			currBlockSize += len(value)
-		}
-		dataBytes = append(dataBytes, value...)
-		currOffset += int64(len(value))
+		value := append(SizeAndValueToBytes(keyValues[i].GetKey()), SizeAndValueToBytes(keyValues[i].GetValue())...)
+		blockIndex := fw.Write(value, false, nil)
+		keys[i] = keyValues[i].GetKey()
+		offsets[i] = blockIndex
 	}
-	return dataBytes, keys, offsets
+	return keys, offsets
 }
 
-func serializeIndexGetOffsets(keys []string, keyOffsets []int64, startOffset int64) ([]byte, []int64) {
+func SerializeIndexGetOffsets(keys []string, offsets []int, fw file_writer.FileWriterInterface) ([]string, []int) {
 
-	currOffset := startOffset
-	indexOffsets := []int64{}
-	dataBytes := make([]byte, 0)
+	elNum := len(keys) / CONFIG.SummaryStep
+	if len(keys)%CONFIG.SummaryStep != 0 {
+		elNum++
+	}
+	if len(keys) < CONFIG.SummaryStep {
+		elNum = len(keys)
+	}
+	sumKeys := make([]string, 0, elNum)
+	sumOffsets := make([]int, 0, elNum)
 
 	for i := 0; i < len(keys); i++ {
-		value := append(sizeAndValueToBytes(keys[i]), intToBytes(keyOffsets[i])...)
-		dataBytes = append(dataBytes, value...)
-		indexOffsets = append(indexOffsets, currOffset)
-		currOffset += int64(len(value))
-	}
-	return dataBytes, indexOffsets
-}
-func getSummaryBytes(keys []string, offsets []int64) []byte {
+		key := keys[i]
+		offset := offsets[i]
+		value := append(SizeAndValueToBytes(key), IntToBytes(int64(offset))...)
+		currBlock := fw.Write(value, false, nil)
 
-	dataBytes := make([]byte, 0)
-
-	for i := 0; i < len(keys); i = i + CONFIG.SummaryStep {
-		value := append(sizeAndValueToBytes(keys[i]), intToBytes(offsets[i])...)
-		dataBytes = append(dataBytes, value...)
+		if i == 0 || i == len(keys)-1 || i%CONFIG.SummaryStep == 0 {
+			sumKeys = append(sumKeys, key)
+			sumOffsets = append(sumOffsets, currBlock)
+		}
 	}
-	return dataBytes
+	return sumKeys, sumOffsets
 }
-func getMetaDataBytes(summarySize int64, summaryStartOffset int64, bloomFilterBytes []byte, merkleTreeBytes []byte, numOfItems int64) []byte {
-	dataBytes := make([]byte, 0)
-	dataBytes = append(dataBytes, merkleTreeBytes...)
-	dataBytes = append(dataBytes, intToBytes(int64(len(merkleTreeBytes)))...)
-	dataBytes = append(dataBytes, intToBytes(numOfItems)...)
-	dataBytes = append(dataBytes, intToBytes(summarySize)...)
-	dataBytes = append(dataBytes, intToBytes(summaryStartOffset)...)
-	dataBytes = append(dataBytes, bloomFilterBytes...)
-	dataBytes = append(dataBytes, intToBytes(int64(len(bloomFilterBytes)))...)
-	return dataBytes
+func SerializeSummary(keys []string, offsets []int, fw file_writer.FileWriterInterface) {
+
+	for i := 0; i < len(keys); i++ {
+		key := keys[i]
+		offset := offsets[i]
+		value := append(SizeAndValueToBytes(key), IntToBytes(int64(offset))...)
+		fw.Write(value, false, nil)
+
+	}
+
 }
-func intToBytes(n int64) []byte {
-	buf := make([]byte, 8) // 8 bytes for int64
+
+func SerializeMetaData(summaryStartOffset int, bloomFilterBytes []byte, merkleTreeBytes []byte, numOfItems int, fw file_writer.FileWriterInterface, SummaryEndOffset int, prefixFilterBytes []byte) {
+	starting_offset := fw.Write(IntToBytes(int64(len(bloomFilterBytes))), false, nil)
+	fw.Write(bloomFilterBytes, false, nil)
+	fw.Write(IntToBytes(int64(len(prefixFilterBytes))), false, nil)
+	fw.Write(prefixFilterBytes, false, nil)
+	fw.Write(IntToBytes(int64(summaryStartOffset)), false, nil)
+	fw.Write(IntToBytes(int64(SummaryEndOffset)), false, nil)
+	fw.Write(IntToBytes(int64(numOfItems)), false, nil)
+	fw.Write(IntToBytes(int64(len(merkleTreeBytes))), false, nil)
+	fw.Write(merkleTreeBytes, false, nil)
+	fw.Write(nil, true, IntToBytes(int64(starting_offset)))
+}
+
+func IntToBytes(n int64) []byte {
+	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, uint64(n))
 	return buf
 }
-func addPaddingToBlock(data []byte,dataSize int, size int, fromBack bool) []byte {
-	if dataSize % size != 0 {
-		paddingSize := size - (dataSize % size)
-		padding := make([]byte, paddingSize)
-		if fromBack {
-		data = append(data, padding...)
-		} else {
-			data = append(padding, data...)
-		}
-	}
-	return data
-}
-func sizeAndValueToBytes(value string) []byte {
+
+func SizeAndValueToBytes(value string) []byte {
 	valueBytes := []byte(value)
-	valueSizeBytes := intToBytes(int64(len(valueBytes)))
+	valueSizeBytes := IntToBytes(int64(len(valueBytes)))
 	return append(valueSizeBytes, valueBytes...)
 }

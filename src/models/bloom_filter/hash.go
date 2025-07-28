@@ -3,7 +3,7 @@ package bloom_filter
 import (
 	"crypto/md5"
 	"encoding/binary"
-	"time"
+	"math/rand"
 )
 
 type HashWithSeed struct {
@@ -17,8 +17,9 @@ func (h HashWithSeed) Hash(data []byte) uint64 {
 }
 
 func CreateHashFunctions(k uint32) []HashWithSeed {
+	rand.NewSource(442)
 	h := make([]HashWithSeed, k)
-	ts := uint32(time.Now().Unix())
+	ts := rand.Uint32()
 	for i := uint32(0); i < k; i++ {
 		seed := make([]byte, 4)
 		binary.BigEndian.PutUint32(seed, ts+i)

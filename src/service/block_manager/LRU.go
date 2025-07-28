@@ -32,7 +32,7 @@ func (c *LRUCache) Put(filePath string, blockID int, data []byte) error {
 
 	if elem, found := c.cache[key]; found {
 		c.lruList.MoveToFront(elem)
-		elem.SetData(data)
+		elem.Set(data)
 		return nil
 	}
 
@@ -53,16 +53,16 @@ func (c *LRUCache) evict() {
 	}
 
 	block := elem
-	c.evicted = &EvictedBlock{block.GetFilename(), block.GetNumber(), block.GetData()}
+	c.evicted = &EvictedBlock{block.GetFilename(), block.GetNumber(), block.Get()}
 	delete(c.cache, fmt.Sprintf("%s:%d", c.evicted.filePath, c.evicted.blockID))
-	c.lruList.DeleteFromEnd()
+	c.lruList.DeleteEnd()
 }
 
 func (c *LRUCache) Get(filePath string, blockID int) ([]byte, error) {
 	key := fmt.Sprintf("%s:%d", filePath, blockID)
 	if elem, found := c.cache[key]; found {
 		c.lruList.MoveToFront(elem)
-		return elem.GetData(), nil
+		return elem.Get(), nil
 	}
 	return nil, fmt.Errorf("Block not found")
 }
