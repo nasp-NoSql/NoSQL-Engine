@@ -90,17 +90,10 @@ func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWrit
 	// merkle := merkle_tree.InitializeMerkleTree(totalItems)
 	for !areAllValuesZero(counts) {
 		minIndex := getMinValIndex(currKeys, currValues)
-		print("\n" + "Min Index: ", minIndex, "\n" + currValues[minIndex])
 		removeDuplicateKeys(currKeys, minIndex)
-
-		for _, key := range counts {
-			print(fmt.Sprintf("%d ", key))
-		}
-
 		bloom.Add(currKeys[minIndex])
 		// merkle.AddLeaf(string(keyBytes[minIndex]), valBytes) // Add to Merkle tree
 		fullVal := append(ss_parser.SizeAndValueToBytes(currKeys[minIndex]), ss_parser.SizeAndValueToBytes(currValues[minIndex])...)
-		fmt.Printf("Full Value: %s\n", fullVal)
 		newBlockOffset := fw.Write(fullVal, false, nil)
 		if currBlockOffset != newBlockOffset {
 			currBlockOffset = newBlockOffset
