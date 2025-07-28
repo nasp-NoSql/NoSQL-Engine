@@ -65,8 +65,9 @@ func (engine *Engine) Start() {
 		fmt.Println("Error replaying WAL:", err)
 		return
 	}
+	fmt.Print(recoveredEntries)
 	for _, entry := range recoveredEntries {
-		engine.Write(entry.Key, entry.Value, entry.Operation, true)
+		engine.Write("",entry.Key, entry.Value, true)
 	}
 }
 func (engine *Engine) Close() error {

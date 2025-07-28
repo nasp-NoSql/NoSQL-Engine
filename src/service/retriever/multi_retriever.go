@@ -5,6 +5,7 @@ import (
 	"nosqlEngine/src/models/bloom_filter"
 	"nosqlEngine/src/service/block_manager"
 	"nosqlEngine/src/service/file_reader"
+	"nosqlEngine/src/utils"
 )
 
 type MultiRetriever struct {
@@ -15,10 +16,7 @@ type MultiRetriever struct {
 
 func NewMultiRetriever(bm *block_manager.BlockManager) *MultiRetriever {
 	sstablePaths := make([]string, 0)
-	// Get all SSTable files from all levels
-	for i := 0; i < CONFIG.LSMLevels; i++ {
-		sstablePaths = append(sstablePaths, getFilesFromLevel(i)...)
-	}
+
 	if len(sstablePaths) == 0 {
 		return &MultiRetriever{
 			fileReader:   file_reader.FileReader{},
@@ -182,16 +180,19 @@ func binarySearch(arr []KeyOffset, prefix string) int {
 }
 
 func (mr *MultiRetriever) GetPrefixEntries(prefix string) ([]string, error) {
-	if len(mr.sstablePaths) == 0 {
-		return nil, fmt.Errorf("no SSTable files found")
-	}
 
+	mr.sstablePaths = []string{}
+	for i := 0; i <= CONFIG.LSMLevels; i++ {
+		mr.sstablePaths = append(mr.sstablePaths, utils.GetPaths("data/sstable/lvl"+fmt.Sprint(i), ".db")...)
+	}
+	if len(mr.sstablePaths) == 0 {
+		return nil, fmt.Errorf("no SSTables found")
+	}
 	mr.currentIndex = 0
 	mr.fileReader.ResetReader(mr.sstablePaths[mr.currentIndex], false)
 	all_values := make([]string, 0)
 
 	for {
-		fmt.Printf("Searching in SSTable: %s\n", mr.sstablePaths[mr.currentIndex])
 		mr.fileReader.SetDirection(false)
 
 		md, err := mr.deserializeMetadata(prefix)
@@ -223,7 +224,6 @@ func (mr *MultiRetriever) GetPrefixEntries(prefix string) ([]string, error) {
 		fmt.Printf("Starting offset: %d, Ending offset: %d\n", startingOffset, endingOffset)
 		offsets, err := mr.searchIndex(int64(startingOffset), endingOffset, prefix)
 		if err != nil {
-			fmt.Printf("Error searching index in %s: %v\n", mr.sstablePaths[mr.currentIndex], err)
 			break // Break inner loop, try next SSTable
 		}
 		fmt.Printf("Offsets found for prefix %s: %v\n", prefix, offsets)

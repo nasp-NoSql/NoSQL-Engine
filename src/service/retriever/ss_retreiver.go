@@ -6,6 +6,7 @@ import (
 	"nosqlEngine/src/models/bloom_filter"
 	"nosqlEngine/src/service/block_manager"
 	"nosqlEngine/src/service/file_reader"
+	"nosqlEngine/src/utils"
 )
 
 var CONFIG = config.GetConfig()
@@ -14,7 +15,6 @@ type EntryRetriever struct {
 	fileReader   file_reader.FileReader
 	sstablePaths []string
 	currentIndex int
-	currentLevel   int
 
 }
 
@@ -55,7 +55,6 @@ func NewEntryRetriever(bm *block_manager.BlockManager) *EntryRetriever {
 		fileReader:   fileReader,
 		sstablePaths: sstablePaths,
 		currentIndex: 0,
-		currentLevel: 0,
 	}
 }
 
@@ -145,18 +144,7 @@ func (r *EntryRetrieverPool) loadNextBlock(readerIndex int) error {
 func (r *EntryRetriever) resetToNextSSTable() bool {
 	r.currentIndex++
 	if r.currentIndex >= len(r.sstablePaths) {
-		if r.currentLevel < CONFIG.LSMLevels { // move to next level if available
-			r.currentLevel++
-			r.sstablePaths = getFilesFromLevel(r.currentLevel)
-			if len(r.sstablePaths) == 0 {
-				fmt.Println("No more SSTables found at level", r.currentLevel)
-				return false
-			}
-			r.currentIndex = 0
-		} else {
-			fmt.Println("Reached the end of all SSTables")
-			return false
-		}
+		return false
 	}
 
 	r.fileReader.ResetReader(r.sstablePaths[r.currentIndex], false)
@@ -166,24 +154,17 @@ func (r *EntryRetriever) resetToNextSSTable() bool {
 
 func (r *EntryRetriever) RetrieveEntry(key string) (string, bool, error) {
 
+	r.sstablePaths = []string{}
 	for i := 0; i <= CONFIG.LSMLevels; i++ {
-		r.sstablePaths = getFilesFromLevel(i)
-		r.currentLevel = i
-		if len(r.sstablePaths) > 0 {
-			break
-		}
+		r.sstablePaths = append(r.sstablePaths, utils.GetPaths("data/sstable/lvl"+fmt.Sprint(i), ".db")...)
 	}
 	if len(r.sstablePaths) == 0 {
-		return "", false, fmt.Errorf("no SSTable files found")
+		return "", false, fmt.Errorf("no SSTables found")
 	}
-
-	r.currentIndex = 0
 	r.fileReader.ResetReader(r.sstablePaths[r.currentIndex], false)
 
 	for {
-		fmt.Printf("Searching in SSTable: %s\n", r.sstablePaths[r.currentIndex])
 		r.fileReader.SetDirection(false)
-
 		md, err := r.deserializeMetadata(key)
 		if err != nil {
 			fmt.Printf("Error deserializing metadata in %s: %v\n", r.sstablePaths[r.currentIndex], err)
@@ -220,7 +201,6 @@ func (r *EntryRetriever) RetrieveEntry(key string) (string, bool, error) {
 				fmt.Printf("Searching for key %s in range [%d, %d] in %s\n", key, startOffset, endOffset, r.sstablePaths[r.currentIndex])
 				offset, err := r.searchIndex(startOffset, endOffset, key)
 				if err != nil {
-					fmt.Printf("Error searching index in %s: %v\n", r.sstablePaths[r.currentIndex], err)
 					break // Break inner loop, try next SSTable
 				}
 

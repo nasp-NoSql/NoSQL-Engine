@@ -37,7 +37,6 @@ func (engine *Engine) Write(user string, key string, value string, fromWal bool)
 			defer engine.flush_lock.Unlock()
 
 			engine.ss_parser.FlushMemtable(write_mem.ToRaw())
-			engine.wal.DeleteWALSegments()
 			if engine.curr_mem_index == 0 {
 				engine.wal.DeleteWALSegments()
 			}
@@ -46,7 +45,6 @@ func (engine *Engine) Write(user string, key string, value string, fromWal bool)
 
 		go func() {
 			<-done // wait for FlushMemtable to finish
-			fmt.Print("Compacting tables...\n")
 			engine.ss_compacter.CheckCompactionConditions(engine.block_manager)
 		}()
 	}

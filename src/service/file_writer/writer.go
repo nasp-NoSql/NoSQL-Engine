@@ -33,7 +33,6 @@ func NewFileWriter(bm *block_manager.BlockManager, blockSize int, name string) *
 	projectRoot := getProjectRoot()
 	dataPath := filepath.Join(projectRoot, "data")
 	location := filepath.Join(dataPath, name)
-	fmt.Print("Location of file writer: ", location, "\n")
 	return &FileWriter{
 		block_manager:   *bm,
 		location:        location,
