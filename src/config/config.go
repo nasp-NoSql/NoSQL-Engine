@@ -28,6 +28,7 @@ type Config struct {
 	MaxPrefixLength              int     `json:"MAX_PREFIX_LENGTH"`
 	SkipListLevels               int     `json:"SKIP_LIST_LEVELS"`
 	CompactionThreshold          int     `json:"COMPACTION_THRESHOLD"`
+	CacheCapacity                int     `json:"CACHE_CAPACITY"`
 }
 
 func GetConfig() Config {

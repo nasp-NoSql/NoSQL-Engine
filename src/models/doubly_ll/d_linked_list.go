@@ -2,21 +2,28 @@ package doublyll
 
 import (
 	"fmt"
+
+	"github.com/cespare/xxhash/v2"
 )
+
+type BlockKey uint64
 
 type Block struct {
 	data     []byte
-	number   int
-	filename string
+	BlockKey BlockKey
 	next     *Block
 	prev     *Block
 }
 
-func NewNode(data []byte, number int, filename string) *Block {
+func NewBlockKey(blockNum int, filename string) BlockKey {
+	data := fmt.Sprintf("%s:%d", filename, blockNum)
+	return BlockKey(xxhash.Sum64String(data))
+}
+
+func NewNode(data []byte, blockKey BlockKey) *Block {
 	return &Block{
 		data:     data,
-		number:   number,
-		filename: filename,
+		BlockKey: blockKey,
 		next:     nil,
 		prev:     nil,
 	}
@@ -28,14 +35,6 @@ func (n *Block) Get() []byte {
 
 func (n *Block) Set(data []byte) {
 	n.data = data
-}
-
-func (n *Block) GetNumber() int {
-	return n.number
-}
-
-func (n *Block) GetFilename() string {
-	return n.filename
 }
 
 type DoublyLinkedList struct {

@@ -11,11 +11,13 @@ var CONFIG = config.GetConfig()
 
 type BlockManager struct {
 	block_size int
+	lruCache   *LRUCache
 }
 
 func NewBlockManager() *BlockManager {
 	return &BlockManager{
 		block_size: CONFIG.BlockSize,
+		lruCache:   NewLRUCache(),
 	}
 }
 
@@ -23,6 +25,7 @@ func (bm *BlockManager) WriteBlock(location string, blockNumber int, data []byte
 	if len(data) > bm.block_size {
 		return fmt.Errorf("data size exceeds block size")
 	}
+
 	file, err := os.OpenFile(location, os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return err
@@ -36,10 +39,37 @@ func (bm *BlockManager) WriteBlock(location string, blockNumber int, data []byte
 	}
 
 	_, err = file.Write(data)
-	return err
+	if err != nil {
+		return err
+	}
+
+	bm.lruCache.Put(location, blockNumber, data)
+
+	return nil
 }
 
 func (bm *BlockManager) ReadBlock(location string, blockNumber int, direction bool) ([]byte, error) {
+	var forwardBlockNumber int
+
+	if direction {
+		forwardBlockNumber = blockNumber
+	} else {
+		fileInfo, err := os.Stat(location)
+		if err != nil {
+			return nil, err
+		}
+		totalBlocks := int(fileInfo.Size()) / bm.block_size
+		if blockNumber >= totalBlocks {
+			return nil, io.EOF
+		}
+		forwardBlockNumber = totalBlocks - 1 - blockNumber
+	}
+
+	if data, err := bm.lruCache.Get(location, forwardBlockNumber); err == nil {
+		fmt.Println("Cache hit for block:", forwardBlockNumber)
+		return data, nil
+	}
+
 	file, err := os.Open(location)
 	if err != nil {
 		return nil, err
@@ -54,7 +84,6 @@ func (bm *BlockManager) ReadBlock(location string, blockNumber int, direction bo
 
 	if direction { // true: read from start
 		offset = int64(bm.block_size * blockNumber)
-		// Check if we're trying to read beyond the file
 		if offset >= fileInfo.Size() {
 			return nil, io.EOF
 		}
@@ -79,12 +108,14 @@ func (bm *BlockManager) ReadBlock(location string, blockNumber int, direction bo
 		return nil, err
 	}
 
-	// If we read 0 bytes, we've hit EOF
 	if n == 0 {
 		return nil, io.EOF
 	}
 
-	return buf[:n], nil
+	data := buf[:n]
+	// Store in cache using forward-based block number
+	bm.lruCache.Put(location, forwardBlockNumber, data)
+	return data, nil
 }
 
 func (bm *BlockManager) GetFileSize(location string) (int64, error) {
@@ -104,4 +135,13 @@ func (bm *BlockManager) GetFileSizeBlocks(location string) (int, error) {
 		return 0, nil
 	}
 	return int(size) / bm.block_size, nil
+}
+
+func (bm *BlockManager) ClearCache() {
+	bm.lruCache = NewLRUCache()
+}
+
+func (bm *BlockManager) IsCached(location string, blockNumber int) bool {
+	_, err := bm.lruCache.Get(location, blockNumber)
+	return err == nil
 }

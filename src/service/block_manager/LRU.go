@@ -2,41 +2,41 @@ package block_manager
 
 import (
 	"fmt"
+	cfg "nosqlEngine/src/config"
 	doublyll "nosqlEngine/src/models/doubly_ll"
 )
 
 type LRUCache struct {
 	capacity int
-	cache    map[string]*doublyll.Block
+	cache    map[doublyll.BlockKey]*doublyll.Block
 	lruList  *doublyll.DoublyLinkedList
 	evicted  *EvictedBlock
 }
 
 type EvictedBlock struct {
-	filePath string
-	blockID  int
+	blockKey doublyll.BlockKey
 	data     []byte
 }
 
-func NewLRUCache(capacity int) *LRUCache {
+func NewLRUCache() *LRUCache {
+	capacity := cfg.GetConfig().CacheCapacity
 	return &LRUCache{
 		capacity: capacity,
-		cache:    make(map[string]*doublyll.Block),
+		cache:    make(map[doublyll.BlockKey]*doublyll.Block),
 		lruList:  doublyll.NewDoublyLinkedList(),
 		evicted:  nil,
 	}
 }
 
 func (c *LRUCache) Put(filePath string, blockID int, data []byte) error {
-	key := fmt.Sprintf("%s:%d", filePath, blockID)
-
+	key := doublyll.NewBlockKey(blockID, filePath)
 	if elem, found := c.cache[key]; found {
 		c.lruList.MoveToFront(elem)
 		elem.Set(data)
 		return nil
 	}
 
-	newBlock := doublyll.NewNode(data, blockID, filePath)
+	newBlock := doublyll.NewNode(data, key)
 	c.lruList.InsertBeginning(newBlock)
 	c.cache[key] = newBlock
 
@@ -53,25 +53,26 @@ func (c *LRUCache) evict() {
 	}
 
 	block := elem
-	c.evicted = &EvictedBlock{block.GetFilename(), block.GetNumber(), block.Get()}
-	delete(c.cache, fmt.Sprintf("%s:%d", c.evicted.filePath, c.evicted.blockID))
+	c.evicted = &EvictedBlock{block.BlockKey, block.Get()}
+	delete(c.cache, block.BlockKey)
 	c.lruList.DeleteEnd()
 }
 
 func (c *LRUCache) Get(filePath string, blockID int) ([]byte, error) {
-	key := fmt.Sprintf("%s:%d", filePath, blockID)
+	key := doublyll.NewBlockKey(blockID, filePath)
+	fmt.Print("Fetching block from cache:", key)
 	if elem, found := c.cache[key]; found {
 		c.lruList.MoveToFront(elem)
 		return elem.Get(), nil
 	}
-	return nil, fmt.Errorf("Block not found")
+	return nil, fmt.Errorf("block not found")
 }
 
-func (c *LRUCache) GetEvictedBlock() (string, int, []byte) {
+func (c *LRUCache) GetEvictedBlock() (doublyll.BlockKey, []byte) {
 	if c.evicted == nil {
-		return "", 0, nil
+		return 0, nil
 	}
-	filePath, blockID, data := c.evicted.filePath, c.evicted.blockID, c.evicted.data
+	blockKey, data := c.evicted.blockKey, c.evicted.data
 	c.evicted = nil
-	return filePath, blockID, data
+	return blockKey, data
 }
