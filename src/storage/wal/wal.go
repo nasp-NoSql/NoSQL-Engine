@@ -12,6 +12,7 @@ import (
 	"nosqlEngine/src/service/file_writer"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 )
 
@@ -104,6 +105,7 @@ func (w *WAL) WritePut(key, value string) error {
 	// w.buffer = append(w.buffer, data)
 	//fmt.Print(w.buffer[0])
 	w.buffer = append(w.buffer, entry)
+	fmt.Print("Writing PUT entry: ", entry,  "and buffer size: ", len(w.buffer), "\n")
 	if len(w.buffer) >= w.bufferSize {
 		return w.Flush()
 	}
@@ -166,6 +168,7 @@ func (w *WAL) Flush() error {
 			return err
 		}
 		if w.writer != nil {
+
 			w.writer.Write(data, false, nil)
 			// If the segment size is reached, archive the current WAL segment
 		} else {
@@ -245,7 +248,7 @@ func readWALEntry(reader *file_reader.FileReader, blockNum int) (*WALEntry, uint
 }
 
 func GetWALSegmentPaths() ([]string, error) {
-	walDir := "../../../data/wal"
+	walDir := filepath.ToSlash(filepath.Join(getProjectRoot(), "data/wal"))
 	files, err := os.ReadDir(walDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read WAL directory: %w", err)
@@ -258,7 +261,12 @@ func GetWALSegmentPaths() ([]string, error) {
 	}
 	return segmentPaths, nil
 }
-
+func getProjectRoot() string {
+	_, filename, _, _ := runtime.Caller(0)
+	// Go up from src/service/file_writer/writer.go to project root
+	projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(filename))))
+	return projectRoot
+}
 // ReplayWAL reads all the WAL segment files and returns all entries (for recovery)
 func ReplayWAL(block_manager *block_manager.BlockManager) ([]WALEntry, error) {
 	var allEntries []WALEntry

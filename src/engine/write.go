@@ -29,7 +29,7 @@ func (engine *Engine) Write(user string, key string, value string, fromWal bool)
 	write_mem := engine.memtables[engine.curr_mem_index]
 	write_mem.Add(key, value)
 
-	if write_mem.GetSize() >= CONFIG.MemtableSize {
+	if write_mem.GetSize() >= CONFIG.MemtableSize && !fromWal {
 		engine.SetNextMemtable()
 		done := make(chan struct{})
 		go func() {
@@ -37,6 +37,7 @@ func (engine *Engine) Write(user string, key string, value string, fromWal bool)
 			defer engine.flush_lock.Unlock()
 
 			engine.ss_parser.FlushMemtable(write_mem.ToRaw())
+			engine.wal.DeleteWALSegments()
 			if engine.curr_mem_index == 0 {
 				engine.wal.DeleteWALSegments()
 			}
