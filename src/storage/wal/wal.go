@@ -173,7 +173,6 @@ func (w *WAL) Flush() error {
 		}
 	}
 	size, err := getFileSize(w.writer.GetLocation())
-	fmt.Print(size)
 	if err != nil {
 		return err
 	}
@@ -208,7 +207,7 @@ func (w *WAL) Rotate() error {
 	return nil
 }
 
-// Helper to generate a rotated WAL filename with timestamp
+// Helper to generate a rotated WAL filename with timestampc
 
 func generateWALSegmentName() string {
 	return fmt.Sprintf("wal/wal-%s.log", time.Now().Format("20060102-150405.000000000"))
@@ -266,7 +265,6 @@ func ReplayWAL(block_manager *block_manager.BlockManager) ([]WALEntry, error) {
 	reader := file_reader.NewFileReader("", CONFIG.BlockSize, *block_manager)
 	// Get the list of WAL segment files
 	segmentPaths, err := GetWALSegmentPaths()
-	fmt.Println(segmentPaths)
 	if err != nil {
 		return nil, err
 	}

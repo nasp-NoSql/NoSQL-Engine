@@ -54,7 +54,7 @@ func (sc *SSCompacterST) CheckCompactionConditions(bm *block_manager.BlockManage
 	for level < CONFIG.LSMLevels {
 		sstFiles := getFilesFromLevel(level)
 
-		for len(sstFiles) >= CONFIG.CompactionThreshold && level < CONFIG.LSMLevels {
+		for len(sstFiles) >= CONFIG.CompactionThreshold {
 			toCompact := sstFiles[:CONFIG.CompactionThreshold]
 			sstFiles = sstFiles[CONFIG.CompactionThreshold:]
 			lvlDir := fmt.Sprintf("lvl%d", level+1)
@@ -89,12 +89,18 @@ func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWrit
 	bloom := bloom_filter.NewBloomFilterWithParams(totalItems, 0.01) // 1% false positive rate
 	// merkle := merkle_tree.InitializeMerkleTree(totalItems)
 	for !areAllValuesZero(counts) {
-		minIndex := getMinValIndex(currKeys)
-		fmt.Printf("Current keys: %v\n", currKeys)
+		minIndex := getMinValIndex(currKeys, currValues)
+		print("\n" + "Min Index: ", minIndex, "\n" + currValues[minIndex])
 		removeDuplicateKeys(currKeys, minIndex)
+
+		for _, key := range counts {
+			print(fmt.Sprintf("%d ", key))
+		}
+
 		bloom.Add(currKeys[minIndex])
 		// merkle.AddLeaf(string(keyBytes[minIndex]), valBytes) // Add to Merkle tree
 		fullVal := append(ss_parser.SizeAndValueToBytes(currKeys[minIndex]), ss_parser.SizeAndValueToBytes(currValues[minIndex])...)
+		fmt.Printf("Full Value: %s\n", fullVal)
 		newBlockOffset := fw.Write(fullVal, false, nil)
 		if currBlockOffset != newBlockOffset {
 			currBlockOffset = newBlockOffset
