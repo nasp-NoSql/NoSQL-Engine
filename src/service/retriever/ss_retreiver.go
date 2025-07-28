@@ -68,12 +68,10 @@ func NewEntryRetrieverPool(bm *block_manager.BlockManager, tables []string) *Ent
 	cachedBlocks := make([][]byte, len(tables))
 
 	for i, table := range tables {
-		fmt.Printf("Initializing reader for table: %s\n", table)
 		fileReaders[i] = *file_reader.NewFileReader(table, CONFIG.BlockSize, *bm)
 		fileReaders[i].SetDirection(false) // Set default direction to forward
 		md, err := deserializeMetadataOnly(fileReaders[i])
 		if err != nil {
-			fmt.Printf("Error deserializing metadata for %s: %v\n", table, err)
 			readersPerMetadata[i] = Metadata{}
 		} else {
 			readersPerMetadata[i] = md
