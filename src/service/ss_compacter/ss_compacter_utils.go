@@ -11,21 +11,23 @@ func updateValsAndCounts(keys []string, vals []string, counts []int, pool *retri
 			vals[i] = ""
 			continue
 		}
-		counts[i]--
-		if keys[i] == "" && counts[i] > 0 {
-			keys[i], vals[i], _, _ = pool.ReadNextVal(i) // Read the
+		if keys[i] == "" {
+			counts[i]--
+			if counts[i] != 0 {
+				keys[i], vals[i], _, _ = pool.ReadNextVal(i) // Read the next value
+			}
 		}
 	}
 }
 func getMinValIndex(keys []string, values []string) int {
 	minVal := "\xFF\xFF\xFF\xFF" // Maximum possible string value
 	minIdx := -1
-	for i, val := range keys {
-		if val == "" {
+	for i, key := range keys {
+		if key == "" {
 			continue
 		}
-		if val < minVal {
-			minVal = val
+		if key < minVal {
+			minVal = key
 			minIdx = i
 		}
 	}
