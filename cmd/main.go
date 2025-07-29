@@ -78,10 +78,8 @@ func main() {
 
 func initSketches() {
 	// Try loading CMS
-	fmt.Println("[DEBUG] Trying to load CMS from:", getSerializedPath(""))
 	cms, err := countmin_sketch.Deserialize(getSerializedPath("cms.bin"))
 	if err != nil {
-		fmt.Print("Errorcms")
 		CMS = &countmin_sketch.CountMinSketch{}
 		CMS.Initialize(0.01, 0.001)
 	} else {
@@ -91,7 +89,6 @@ func initSketches() {
 	// Try loading HLL
 	hll, err := hyperloglog.Deserialize(getSerializedPath("hll.bin"))
 	if err != nil {
-		fmt.Print("Errorhll")
 		HLL = &hyperloglog.HyperLogLog{}
 		HLL.Initialize(0.01)
 	} else {
@@ -101,7 +98,6 @@ func initSketches() {
 	// Try loading SH
 	sh, err := simhash.Deserialize(getSerializedPath("sh.bin"))
 	if err != nil {
-		fmt.Print("Errorsh")
 		SH = &simhash.SimHash{}
 	} else {
 		SH = &sh
