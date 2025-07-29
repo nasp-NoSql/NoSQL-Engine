@@ -152,6 +152,7 @@ func (r *EntryRetriever) resetToNextSSTable() bool {
 
 func (r *EntryRetriever) RetrieveEntry(key string) (string, bool, error) {
 
+	r.currentIndex = 0 // Reset to first SSTable
 	r.sstablePaths = []string{}
 	for i := 0; i <= CONFIG.LSMLevels; i++ {
 		r.sstablePaths = append(r.sstablePaths, utils.GetPaths("data/sstable/lvl"+fmt.Sprint(i), ".db")...)
@@ -203,7 +204,7 @@ func (r *EntryRetriever) RetrieveEntry(key string) (string, bool, error) {
 				}
 
 				dataOffset := int64(totalBlocks) - offset - 1
-				
+
 				fmt.Print("Data offset for key ", key, " is: ", dataOffset, "\n")
 				value, dataErr := r.searchData(dataOffset, key)
 				if dataErr != nil {
