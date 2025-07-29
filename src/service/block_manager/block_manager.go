@@ -43,7 +43,7 @@ func (bm *BlockManager) WriteBlock(location string, blockNumber int, data []byte
 		return err
 	}
 
-	bm.lruCache.Put(location, blockNumber, data)
+	//bm.lruCache.Put(location, blockNumber, data)
 
 	return nil
 }
@@ -56,6 +56,7 @@ func (bm *BlockManager) ReadBlock(location string, blockNumber int, direction bo
 	} else {
 		fileInfo, err := os.Stat(location)
 		if err != nil {
+			fmt.Println("Error getting file info:", err, " for forwardBlockNumber:", forwardBlockNumber)
 			return nil, err
 		}
 		totalBlocks := int(fileInfo.Size()) / bm.block_size
@@ -65,10 +66,10 @@ func (bm *BlockManager) ReadBlock(location string, blockNumber int, direction bo
 		forwardBlockNumber = totalBlocks - 1 - blockNumber
 	}
 
-	if data, err := bm.lruCache.Get(location, forwardBlockNumber); err == nil {
-		fmt.Println("Cache hit for block:", forwardBlockNumber)
-		return data, nil
-	}
+	// if data, err := bm.lruCache.Get(location, forwardBlockNumber); err == nil {
+	// 	fmt.Println("Cache hit for block:", forwardBlockNumber)
+	// 	return data, nil
+	// }
 
 	file, err := os.Open(location)
 	if err != nil {
@@ -113,8 +114,7 @@ func (bm *BlockManager) ReadBlock(location string, blockNumber int, direction bo
 	}
 
 	data := buf[:n]
-	// Store in cache using forward-based block number
-	bm.lruCache.Put(location, forwardBlockNumber, data)
+	//bm.lruCache.Put(location, forwardBlockNumber, data)
 	return data, nil
 }
 
