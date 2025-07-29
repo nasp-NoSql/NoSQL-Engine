@@ -95,7 +95,6 @@ func (sc *SSCompacterST) compactTables(tables []string, fw *file_writer.FileWrit
 		removeDuplicateKeys(currKeys, minIndex) // Remove duplicates for the current key
 		bloom.Add(currKeys[minIndex])
 		merkle.AddLeaf(string(currValues[minIndex])) // Add to Merkle tree
-		print("Compacting key: ", currKeys[minIndex], " with value: ", currValues[minIndex], "\n")
 		fullVal := append(ss_parser.SizeAndValueToBytes(currKeys[minIndex]), ss_parser.SizeAndValueToBytes(currValues[minIndex])...)
 		newBlockOffset := fw.Write(fullVal, false, nil)
 		if currBlockOffset != newBlockOffset {

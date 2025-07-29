@@ -23,6 +23,7 @@ const (
 	ColorWhite  = "\033[37m"
 	ColorBold   = "\033[1m"
 )
+var CONFIG = config.GetConfig()
 
 func main() {
 	printWelcome()
@@ -74,8 +75,8 @@ func printHelp() {
 	fmt.Printf("  %s🗑️  DELETE <key>%s        - Delete a key-value pair\n", ColorRed, ColorReset)
 	fmt.Printf("  %s📊 STATS%s              - Show engine statistics\n", ColorPurple, ColorReset)
 	fmt.Printf("  %s❓ HELP%s               - Show this help message\n", ColorCyan, ColorReset)
-	fmt.Printf("  %sPREFIX_SCAN <prefix> <pageNum> <pageSize>%s -Use prefix iterator\n", ColorWhite, ColorReset)
-	fmt.Printf("  %sPREFIX_ITERATE <prefix>%s -Use prefix iterator\n", ColorWhite, ColorReset)
+	fmt.Printf("  %s🔍 PREFIX_SCAN <prefix> <pageNum> <pageSize>%s - Use prefix scan\n", ColorWhite, ColorReset)
+	fmt.Printf("  %s🔄 PREFIX_ITERATE <prefix>%s - Use prefix iterator\n", ColorWhite, ColorReset)
 	fmt.Printf("  %s🚪 EXIT%s               - Exit the application\n", ColorYellow, ColorReset)
 	fmt.Println()
 }
@@ -154,7 +155,7 @@ func handleGet(eng *engine.Engine, parts []string) {
 
 	if err != nil {
 		fmt.Printf("%s[ERROR]%s ❌ Error reading key '%s': %v\n", ColorRed, ColorReset, key, err)
-	} else if found {
+	} else if found && value != CONFIG.Tombstone {
 		fmt.Printf("%s[SUCCESS]%s 🔍 GET '%s' -> '%s' %s(%.2fms)%s\n",
 			ColorGreen, ColorReset, key, value, ColorYellow, float64(duration.Nanoseconds())/1e6, ColorReset)
 	} else {
@@ -202,44 +203,47 @@ func handlePrefixIterator(eng *engine.Engine, parts []string) {
 	prefix := parts[1]
 	iterator, err := eng.PrefixIterate(user, prefix)
 	if err != nil {
-		fmt.Printf("Error creating prefix iterator: %v\n", err)
+		fmt.Printf("%s[ERROR]%s ❌ Error creating prefix iterator: %v\n", ColorRed, ColorReset, err)
 		return
 	}
 
-	fmt.Printf("Prefix iterator created for prefix '%s'. Use 'next' to get next record, 'stop' to terminate.\n", prefix)
+	fmt.Printf("%s[SUCCESS]%s 🔄 Prefix iterator created for prefix '%s%s%s'. Use 'next' to get next record, 'stop' to terminate.\n", 
+		ColorGreen, ColorReset, ColorCyan, prefix, ColorReset)
 
 	for {
 		var command string
-		fmt.Print("Iterator> ")
+		fmt.Printf("%s🔄 Iterator>%s ", ColorBlue, ColorReset)
 		fmt.Scanln(&command)
 
 		switch command {
 		case "next":
 			key, value, hasNext := iterator.Next()
 			if key == "" && value == "" {
-				fmt.Println("No more records.")
+				fmt.Printf("%s[INFO]%s 🔚 No more records.\n", ColorYellow, ColorReset)
 				return
 			}
-			fmt.Printf("Key: %s, Value: %s\n", key, value)
+			fmt.Printf("%s[RECORD]%s 📋 Key: %s%s%s, Value: %s%s%s\n", 
+				ColorGreen, ColorReset, ColorCyan, key, ColorReset, ColorBlue, value, ColorReset)
 			if !hasNext {
-				fmt.Println("This was the last record.")
+				fmt.Printf("%s[INFO]%s ✅ This was the last record.\n", ColorYellow, ColorReset)
 				return
 			}
 		case "stop":
 			iterator.Stop()
-			fmt.Println("Iterator stopped.")
+			fmt.Printf("%s[INFO]%s 🛑 Iterator stopped.\n", ColorYellow, ColorReset)
 			return
 		case "has_next":
 			if iterator.HasNext() {
-				fmt.Println("Iterator has more records.")
+				fmt.Printf("%s[INFO]%s ✅ Iterator has more records.\n", ColorGreen, ColorReset)
 			} else {
-				fmt.Println("Iterator has no more records.")
+				fmt.Printf("%s[INFO]%s ❌ Iterator has no more records.\n", ColorYellow, ColorReset)
 			}
 		case "reset":
 			iterator.Reset()
-			fmt.Println("Iterator reset to beginning.")
+			fmt.Printf("%s[INFO]%s 🔄 Iterator reset to beginning.\n", ColorGreen, ColorReset)
 		default:
-			fmt.Println("Unknown command. Available commands: next, stop, has_next, reset")
+			fmt.Printf("%s[ERROR]%s ❓ Unknown command. Available commands: %snext%s, %sstop%s, %shas_next%s, %sreset%s\n", 
+				ColorRed, ColorReset, ColorCyan, ColorReset, ColorCyan, ColorReset, ColorCyan, ColorReset, ColorCyan, ColorReset)
 		}
 	}
 }

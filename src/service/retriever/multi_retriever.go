@@ -47,7 +47,6 @@ func (mr *MultiRetriever) resetToNextSSTable() bool {
 	}
 
 	mr.fileReader.ResetReader(mr.sstablePaths[mr.currentIndex], false)
-	fmt.Printf("Switched to SSTable: %s\n", mr.sstablePaths[mr.currentIndex])
 	return true
 }
 func (mr *MultiRetriever) deserializeMetadata(key string) (Metadata, error) {
@@ -88,8 +87,6 @@ func (mr *MultiRetriever) deserializeMetadata(key string) (Metadata, error) {
 	bf_pb_size := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
 	offsetInBlock += 8
 	bf_bp_bytes := completedBlocks[offsetInBlock : offsetInBlock+bf_pb_size]
-	fmt.Print("MULTI Bloom Filter Bytes: ", bf_data, "\n")
-	fmt.Print("MULTI Bloom Filter Prefix Bytes: ", len(bf_bp_bytes), "\n")
 	// deser prefix bf
 	prefixBF, errPbf := bloom_filter.DeserializePrefixBloomFilter(bf_bp_bytes)
 	if errPbf != nil {
@@ -208,7 +205,6 @@ func (mr *MultiRetriever) GetPrefixEntries(prefix string) (map[string]string, er
 
 		md, err := mr.deserializeMetadata(prefix)
 		if err != nil {
-			fmt.Printf("Error deserializing metadata in %s: %v\n", mr.sstablePaths[mr.currentIndex], err)
 			if !mr.resetToNextSSTable() {
 				break
 			}
@@ -216,9 +212,7 @@ func (mr *MultiRetriever) GetPrefixEntries(prefix string) (map[string]string, er
 		}
 
 		sumArray, errSum := mr.deserializeSummary(md)
-		fmt.Printf("Summary array for prefix %s: %v\n", prefix, sumArray)
 		startingOffset := linearSearch(sumArray, prefix)
-		fmt.Printf("Starting offset for prefix %s: %d\n", prefix, startingOffset)
 		endingOffset := sumArray[len(sumArray)-1].getOffset()
 		if startingOffset == -1 {
 			fmt.Printf("Key with prefix %s not found in summary in %s\n", prefix, mr.sstablePaths[mr.currentIndex])
@@ -232,12 +226,10 @@ func (mr *MultiRetriever) GetPrefixEntries(prefix string) (map[string]string, er
 			continue
 		}
 		//totalBlocks, err := (mr.fileReader.GetFileSizeBlocks())
-		fmt.Printf("Starting offset: %d, Ending offset: %d\n", startingOffset, endingOffset)
 		offsets, err := mr.searchIndex(int64(startingOffset), endingOffset, prefix)
 		if err != nil {
 			break // Break inner loop, try next SSTable
 		}
-		fmt.Printf("Offsets found for prefix %s: %v\n", prefix, offsets)
 
 		mr.fileReader.SetDirection(true)
 		for _, dataOffset := range offsets {
@@ -255,7 +247,6 @@ func (mr *MultiRetriever) GetPrefixEntries(prefix string) (map[string]string, er
 			return all_values, nil
 		}
 	}
-	fmt.Println(all_values)
 	return all_values, nil
 }
 

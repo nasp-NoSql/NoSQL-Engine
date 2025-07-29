@@ -102,7 +102,6 @@ func (w *WAL) WritePut(key, value string) error {
 	}
 	w.buffer = append(w.buffer, entry)
 
-	fmt.Print("Writing PUT entry: ", entry, "and buffer size: ", len(w.buffer), "\n")
 	if len(w.buffer) >= w.bufferSize {
 		return w.Flush()
 	}
@@ -133,7 +132,6 @@ func (w *WAL) Flush() error {
 		return nil
 	}
 	for _, entry := range w.buffer {
-		fmt.Print("Writing entry to WAL at KURCINA: ", w.writer.GetLocation(), "\n")
 		data, err := encodeWALEntry(entry)
 		if err != nil {
 			return err

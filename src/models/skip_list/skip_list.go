@@ -73,20 +73,12 @@ func (list *SkipList) Remove(key string) bool {
 	if !exists {
 		return false
 	}
-	
-	// Check if it's already a tombstone
-	alreadyTombstone := (node.Value == "<TOMBSTONE!>")
-	
+
 	for node != nil {
 		node.Value = CONFIG.Tombstone
 		node = node.Below
 	}
-	
-	// Only decrement size if it wasn't already a tombstone
-	if !alreadyTombstone {
-		list.Size--
-	}
-	
+
 	return true
 }
 
@@ -143,14 +135,11 @@ func (list *SkipList) Add(key string, value string) bool {
 		list.initialize()
 	}
 
-	// Check if the key already exists
 	_, exists := list.Get(key)
 	if exists {
-		// Update all nodes with this key
 		return list.updateExistingKey(key, value)
 	}
 
-	// Key doesn't exist, add new node(s)
 	times_to_add := 1
 
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -178,21 +167,17 @@ func (list *SkipList) Add(key string, value string) bool {
 	for i := 0; i < len(added)-1; i++ {
 		added[i].Below = added[i+1]
 	}
-	
-	// Increment size since we added a new key
+
 	list.Size++
 	return true
 }
 
-// updateExistingKey updates the value for all nodes with the given key
 func (list *SkipList) updateExistingKey(key string, value string) bool {
 	node := list.Head
 	updated := false
-	
-	// Traverse all levels
+
 	for node != nil {
 		tmp := node
-		// Traverse horizontally on this level
 		for tmp != nil {
 			if tmp.Key == key {
 				tmp.Value = value
@@ -202,7 +187,7 @@ func (list *SkipList) updateExistingKey(key string, value string) bool {
 		}
 		node = node.Below
 	}
-	
+
 	return updated
 }
 
