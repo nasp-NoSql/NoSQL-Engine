@@ -40,6 +40,7 @@ type WAL struct {
 	bufferSize  int                     // buffer pool size
 	segmentSize int                     // size of each segment in bytes
 	writer      *file_writer.FileWriter // add FileWriter for block writing
+	bm          *block_manager.BlockManager
 }
 
 // NewWAL creates or opens a WAL file for appending, with a buffer pool of given size
@@ -51,7 +52,7 @@ func NewWAL(block_manager *block_manager.BlockManager) (*WAL, error) {
 	bufferSize := CONFIG.WALBufferSize                                                             // default buffer size
 	segmentSize := CONFIG.WALSegmentSize                                                           // default segment size in bytes
 	writer := file_writer.NewFileWriter(block_manager, CONFIG.BlockSize, generateWALSegmentName()) // Create a new FileWriter with the segment size
-	return &WAL{buffer: make([]WALEntry, 0, bufferSize), bufferSize: bufferSize, segmentSize: segmentSize, writer: writer}, nil
+	return &WAL{buffer: make([]WALEntry, 0, bufferSize), bufferSize: bufferSize, segmentSize: segmentSize, writer: writer, bm: block_manager}, nil
 }
 
 // encodeWALEntry encodes a WALEntry into the binary WAL format
@@ -101,7 +102,7 @@ func (w *WAL) WritePut(key, value string) error {
 	}
 	w.buffer = append(w.buffer, entry)
 
-	fmt.Print("Writing PUT entry: ", entry,  "and buffer size: ", len(w.buffer), "\n")
+	fmt.Print("Writing PUT entry: ", entry, "and buffer size: ", len(w.buffer), "\n")
 	if len(w.buffer) >= w.bufferSize {
 		return w.Flush()
 	}
@@ -173,8 +174,7 @@ func getFileSize(path string) (int64, error) {
 
 func (w *WAL) Rotate() error {
 	// w.writer.SetLocation(generateWALSegmentName())
-	blockManager := block_manager.NewBlockManager()
-	w.writer = file_writer.NewFileWriter(blockManager, CONFIG.BlockSize, generateWALSegmentName())
+	w.writer = file_writer.NewFileWriter(w.bm, CONFIG.BlockSize, generateWALSegmentName())
 	w.buffer = make([]WALEntry, 0, w.bufferSize)
 	return nil
 }
@@ -226,6 +226,7 @@ func getProjectRoot() string {
 	projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(filename))))
 	return projectRoot
 }
+
 // ReplayWAL reads all the WAL segment files and returns all entries (for recovery)
 func ReplayWAL(block_manager *block_manager.BlockManager) ([]WALEntry, error) {
 	var allEntries []WALEntry
