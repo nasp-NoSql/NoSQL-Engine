@@ -3,11 +3,11 @@ package b_tree
 import (
 	"encoding/gob"
 	"nosqlEngine/src/config"
+	"nosqlEngine/src/models/key_value"
 	"os"
 	"path/filepath"
 )
 
-// BTreeNode represents a node in the B-Tree
 type BTreeNode struct {
 	Keys     []string
 	Values   []string
@@ -15,17 +15,14 @@ type BTreeNode struct {
 	IsLeaf   bool
 }
 
-// BTree represents the B-Tree itself
-// t is the minimum degree (defines the range for number of keys)
 type BTree struct {
 	Root *BTreeNode
-	T    int // minimum degree
-	Size int // number of keys in the tree
+	T    int
+	Size int
 }
 
 var CONFIG = config.GetConfig()
 
-// NewBTree creates a new B-Tree with given minimum degree
 func NewBTree(t int) *BTree {
 	return &BTree{Root: &BTreeNode{IsLeaf: true}, T: t}
 }
@@ -52,12 +49,12 @@ func (node *BTreeNode) search(key string) (string, bool) {
 }
 
 func (tree *BTree) Add(key, value string) {
-	// Check if key already exists (including tombstoned keys)
 	if tree.updateExistingKey(key, value) {
 		return
 	}
 
-	// Add new key
+	tree.Size++
+
 	root := tree.Root
 	if len(root.Keys) == 2*tree.T-1 {
 		s := &BTreeNode{IsLeaf: false, Children: []*BTreeNode{root}}
@@ -67,10 +64,8 @@ func (tree *BTree) Add(key, value string) {
 	} else {
 		root.addNonFull(key, value, tree.T)
 	}
-	tree.Size++
 }
 
-// updateExistingKey updates an existing key (including tombstoned ones) and returns true if key was found
 func (tree *BTree) updateExistingKey(key, value string) bool {
 	return tree.Root.updateExistingKeyRecursive(key, value)
 }
@@ -140,7 +135,6 @@ func (node *BTreeNode) splitChild(i, t int) {
 	node.Values[i] = y.Values[t-1]
 }
 
-// Remove sets the value of the key to "<TOMBSTONE!>" if found (logical removal)
 func (tree *BTree) Remove(key string) {
 	tree.Root.Remove(key)
 }
@@ -160,7 +154,33 @@ func (node *BTreeNode) Remove(key string) {
 	node.Children[i].Remove(key)
 }
 
-// Serialize serializes the B-Tree into a byte slice
+type KeyValuePair struct {
+	Key   string
+	Value string
+}
+
+func (node *BTreeNode) collectKeyValues(pairs *[]key_value.KeyValue) {
+	i := 0
+	for i < len(node.Keys) {
+		if !node.IsLeaf {
+			node.Children[i].collectKeyValues(pairs)
+		}
+		if node.Values[i] != CONFIG.Tombstone {
+			*pairs = append(*pairs, key_value.NewKeyValue(node.Keys[i], node.Values[i]))
+		}
+		i++
+	}
+	if !node.IsLeaf {
+		node.Children[i].collectKeyValues(pairs)
+	}
+}
+
+func (tree *BTree) ToRaw() []key_value.KeyValue {
+	pairs := []key_value.KeyValue{}
+	tree.Root.collectKeyValues(&pairs)
+	return pairs
+}
+
 func (tree *BTree) Serialize(filename string) error {
 	path := filepath.Join("src/models/serialized", filename)
 	file, err := os.Create(path)
@@ -172,7 +192,6 @@ func (tree *BTree) Serialize(filename string) error {
 	return enc.Encode(tree)
 }
 
-// Deserialize deserializes a byte slice into a B-Tree
 func Deserialize(filename string) (*BTree, error) {
 	path := filepath.Join("src/models/serialized", filename)
 	file, err := os.Open(path)
@@ -186,4 +205,9 @@ func Deserialize(filename string) (*BTree, error) {
 		return nil, err
 	}
 	return &tree, nil
+}
+
+func (tree *BTree) Clear() {
+	tree.Root = &BTreeNode{IsLeaf: true}
+	tree.Size = 0
 }

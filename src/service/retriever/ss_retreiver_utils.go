@@ -94,7 +94,6 @@ func deserializeMetadataOnly(reader file_reader.FileReader) (Metadata, error) {
 	offsetInBlock += 8
 	bf_data := completedBlocks[offsetInBlock : offsetInBlock+bf_size]
 	offsetInBlock += bf_size
-	//fmt.Print("Bloom filter size: ", bf_size, "\n")
 	bf_pd_size := bytesToInt(completedBlocks[offsetInBlock : offsetInBlock+8])
 	offsetInBlock += 8
 	bf_bp_bytes := completedBlocks[offsetInBlock : offsetInBlock+bf_pd_size]
