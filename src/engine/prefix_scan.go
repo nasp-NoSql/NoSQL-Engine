@@ -70,10 +70,11 @@ func SortKeysAndVals(data map[string]string) [][]string {
 	return result_array
 }
 
-func (engine *Engine) PrefixScan(user string, prefix string, pageNum int, pageSize int) {
+func (engine *Engine) PrefixScan(user string, prefix string, pageNum int, pageSize int) [][]string {
 	results, _ := engine.findAllPrefixMatches(prefix)
 
-	SortKeysAndVals(results)
+	sorted := SortKeysAndVals(results)
+	return sorted[min(len(sorted), (pageNum-1)*pageSize):min(len(sorted), pageNum*pageSize)]
 }
 
 func (engine *Engine) findAllPrefixMatches(prefix string) (map[string]string, error) {
@@ -82,6 +83,7 @@ func (engine *Engine) findAllPrefixMatches(prefix string) (map[string]string, er
 	// Scan through memtables
 	for _, mem := range engine.memtables {
 		for _, kv := range mem.ToRaw() {
+			fmt.Println(kv.GetKey(), kv.GetValue())
 			if len(kv.GetKey()) >= len(prefix) && kv.GetKey()[:len(prefix)] == prefix {
 				results[kv.GetKey()] = kv.GetValue()
 			}
@@ -93,6 +95,7 @@ func (engine *Engine) findAllPrefixMatches(prefix string) (map[string]string, er
 	mretriever := retriever.NewMultiRetriever(engine.block_manager)
 
 	retriever_results, err := mretriever.GetPrefixEntries(prefix)
+	fmt.Print(retriever_results, results)
 
 	if err != nil {
 		fmt.Print("Failed to retrieve results from SSTables")

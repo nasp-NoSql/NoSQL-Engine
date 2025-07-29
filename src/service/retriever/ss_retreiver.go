@@ -388,7 +388,6 @@ func (r *EntryRetriever) searchData(offset int64, key string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("error reading summary entry: %v", err)
 		}
-		fmt.Print("checking if key matches: ", keyRetrieved, " with key: ", key, "\n")
 		if keyRetrieved == key {
 			return value, nil // Found the key, return the offset
 		}

@@ -45,7 +45,6 @@ func removeDuplicateKeys(keys []string, index int) {
 			continue
 		}
 		if keys[index] == keys[i] {
-			print("Removing duplicate key: ", keys[i], " at index ", i, "\n")
 			keys[i] = ""
 		}
 	}
