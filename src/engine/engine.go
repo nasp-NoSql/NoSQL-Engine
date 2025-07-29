@@ -67,9 +67,10 @@ func (engine *Engine) Start() {
 	}
 	fmt.Print(recoveredEntries)
 	for _, entry := range recoveredEntries {
-		engine.Write("",entry.Key, entry.Value, true)
+		engine.Write("", entry.Key, entry.Value, true)
 	}
 }
-func (engine *Engine) Close() error {
+func (engine *Engine) Shut() error {
+	engine.wal.Flush()
 	return nil
 }

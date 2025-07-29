@@ -95,9 +95,11 @@ func (mr *MultiRetriever) deserializeMetadata(key string) (Metadata, error) {
 	if errPbf != nil {
 		return Metadata{}, fmt.Errorf("error deserializing prefix bloom filter")
 	}
-	ex := prefixBF.Contains(key)
-	if !ex {
-		return Metadata{}, fmt.Errorf("key %s not found in prefix bloom filter", key)
+	if key != "" {
+		ex := prefixBF.Contains(key)
+		if !ex {
+			return Metadata{}, fmt.Errorf("key %s not found in prefix bloom filter", key)
+		}
 	}
 	offsetInBlock += bf_pb_size
 
@@ -144,6 +146,15 @@ func linearSearch(arr []KeyOffset, prefix string) int {
 	return -1
 }
 
+func linearSearchForRange(arr []KeyOffset, key string) int {
+	for _, item := range arr {
+		if item.getKey() > key {
+			return int(item.getOffset())
+		}
+	}
+	return -1
+}
+
 func binarySearch(arr []KeyOffset, prefix string) int {
 	low, high := 0, len(arr)-1
 
@@ -179,7 +190,7 @@ func binarySearch(arr []KeyOffset, prefix string) int {
 	return ret // Key not found
 }
 
-func (mr *MultiRetriever) GetPrefixEntries(prefix string) ([]string, error) {
+func (mr *MultiRetriever) GetPrefixEntries(prefix string) (map[string]string, error) {
 
 	mr.sstablePaths = []string{}
 	for i := 0; i <= CONFIG.LSMLevels; i++ {
@@ -190,7 +201,7 @@ func (mr *MultiRetriever) GetPrefixEntries(prefix string) ([]string, error) {
 	}
 	mr.currentIndex = 0
 	mr.fileReader.ResetReader(mr.sstablePaths[mr.currentIndex], false)
-	all_values := make([]string, 0)
+	all_values := make(map[string]string)
 
 	for {
 		mr.fileReader.SetDirection(false)
@@ -199,7 +210,7 @@ func (mr *MultiRetriever) GetPrefixEntries(prefix string) ([]string, error) {
 		if err != nil {
 			fmt.Printf("Error deserializing metadata in %s: %v\n", mr.sstablePaths[mr.currentIndex], err)
 			if !mr.resetToNextSSTable() {
-				return nil, fmt.Errorf("key %s not found in any SSTable", prefix)
+				break
 			}
 			continue
 		}
@@ -216,7 +227,7 @@ func (mr *MultiRetriever) GetPrefixEntries(prefix string) ([]string, error) {
 		if errSum != nil {
 			fmt.Printf("Error deserializing summary in %s: %v\n", mr.sstablePaths[mr.currentIndex], errSum)
 			if !mr.resetToNextSSTable() {
-				return nil, fmt.Errorf("key %s not found in any SSTable", prefix)
+				break
 			}
 			continue
 		}
@@ -230,8 +241,8 @@ func (mr *MultiRetriever) GetPrefixEntries(prefix string) ([]string, error) {
 
 		mr.fileReader.SetDirection(true)
 		for _, dataOffset := range offsets {
-			value, dataErr := mr.searchData(dataOffset, prefix)
-			all_values = append(all_values, value)
+			key, value, dataErr := mr.searchData(dataOffset, prefix)
+			all_values[key] = value
 			if dataErr != nil {
 				fmt.Printf("Error searching data in %s: %v\n", mr.sstablePaths[mr.currentIndex], dataErr)
 				break // Break inner loop, try next SSTable
@@ -248,10 +259,78 @@ func (mr *MultiRetriever) GetPrefixEntries(prefix string) ([]string, error) {
 	return all_values, nil
 }
 
-func (mr *MultiRetriever) searchData(offset int64, prefix string) (string, error) {
+// func (mr *MultiRetriever) GetRangeEntries(start string, end string) (map[string]string, error) {
+
+// 	mr.sstablePaths = []string{}
+// 	for i := 0; i <= CONFIG.LSMLevels; i++ {
+// 		mr.sstablePaths = append(mr.sstablePaths, utils.GetPaths("data/sstable/lvl"+fmt.Sprint(i), ".db")...)
+// 	}
+// 	if len(mr.sstablePaths) == 0 {
+// 		return nil, fmt.Errorf("no SSTables found")
+// 	}
+// 	mr.currentIndex = 0
+// 	mr.fileReader.ResetReader(mr.sstablePaths[mr.currentIndex], false)
+// 	all_values := make(map[string]string)
+
+// 	for {
+// 		mr.fileReader.SetDirection(false)
+
+// 		md, err := mr.deserializeMetadata("")
+// 		if err != nil {
+// 			fmt.Printf("Error deserializing metadata in %s: %v\n", mr.sstablePaths[mr.currentIndex], err)
+// 			if !mr.resetToNextSSTable() {
+// 				break
+// 			}
+// 			continue
+// 		}
+
+// 		sumArray, errSum := mr.deserializeSummary(md)
+// 		fmt.Printf("Summary array for start key %s: %v\n", start, sumArray)
+// 		startingOffset := linearSearch(sumArray, start)
+// 		fmt.Printf("Starting offset for end key %s: %d\n", end, startingOffset)
+// 		endingOffset := linearSearch(sumArray, end)
+// 		if startingOffset == -1 {
+// 			continue
+// 		}
+
+// 		if errSum != nil {
+// 			fmt.Printf("Error deserializing summary in %s: %v\n", mr.sstablePaths[mr.currentIndex], errSum)
+// 			if !mr.resetToNextSSTable() {
+// 				break
+// 			}
+// 			continue
+// 		}
+// 		//totalBlocks, err := (mr.fileReader.GetFileSizeBlocks())
+// 		fmt.Printf("Starting offset: %d, Ending offset: %d\n", startingOffset, endingOffset)
+// 		offsets, err := mr.searchIndex(int64(startingOffset), int64(endingOffset), "")
+// 		if err != nil {
+// 			break // Break inner loop, try next SSTable
+// 		}
+
+// 		mr.fileReader.SetDirection(true)
+// 		for _, dataOffset := range offsets {
+// 			key, value, dataErr := mr.searchData(dataOffset, prefix)
+// 			all_values[key] = value
+// 			if dataErr != nil {
+// 				fmt.Printf("Error searching data in %s: %v\n", mr.sstablePaths[mr.currentIndex], dataErr)
+// 				break // Break inner loop, try next SSTable
+// 			}
+// 			fmt.Printf("Retrieved value for prefix %s: %s from %s\n", prefix, value, mr.sstablePaths[mr.currentIndex])
+// 		}
+// 		// Found the key, return the value
+// 		// Try next SSTable
+// 		if !mr.resetToNextSSTable() {
+// 			return all_values, nil
+// 		}
+// 	}
+// 	fmt.Println(all_values)
+// 	return all_values, nil
+// }
+
+func (mr *MultiRetriever) searchData(offset int64, prefix string) (string, string, error) {
 	data, _, err := mr.fileReader.ReadEntry(int(offset))
 	if err != nil {
-		return "", fmt.Errorf("error reading data at offset %d: %v", offset, err)
+		return "", "", fmt.Errorf("error reading data at offset %d: %v", offset, err)
 	}
 	offsetInBlock := 0
 	for offsetInBlock < len(data) {
@@ -260,15 +339,15 @@ func (mr *MultiRetriever) searchData(offset int64, prefix string) (string, error
 		fmt.Print("Key Retrieved: ", keyRetrieved, " Value: ", value, "\n")
 		offsetInBlock += off
 		if err != nil {
-			return "", fmt.Errorf("error reading summary entry: %v", err)
+			return "", "", fmt.Errorf("error reading summary entry: %v", err)
 		}
 		fmt.Print("checking if prefix matches: ", keyRetrieved, " with prefix: ", prefix, "\n")
 		if len(keyRetrieved) >= len(prefix) && keyRetrieved[:len(prefix)] == prefix {
-			return value, nil // Found the key, return the offset
+			return keyRetrieved, value, nil
 		}
 	}
 	fmt.Printf("Data not found for prefix %s at offset %d\n", prefix, offset)
-	return "", fmt.Errorf("data not found for prefix %s at offset %d", prefix, offset)
+	return "", "", fmt.Errorf("data not found for prefix %s at offset %d", prefix, offset)
 }
 
 func (mr *MultiRetriever) deserializeSummary(metadata Metadata) ([]KeyOffset, error) {
