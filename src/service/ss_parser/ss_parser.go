@@ -17,7 +17,7 @@ func NewSSParser(fileWriter file_writer.FileWriterInterface) *SSParserImpl {
 
 func (ssParser *SSParserImpl) FlushMemtable(data []key_value.KeyValue) {
 	key_value.SortByKeys(&data)
-	filter := bloom_filter.NewBloomFilter()
+	filter := bloom_filter.NewBloomFilterWithParams(len(data), 0.01)
 	filter.AddMultiple(key_value.GetKeys(data))
 	merkleTree := merkle_tree.InitializeMerkleTree(len(data))
 	for _, kv := range data {
