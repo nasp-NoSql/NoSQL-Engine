@@ -22,7 +22,7 @@ func NewBlockManager() *BlockManager {
 }
 
 func (bm *BlockManager) WriteBlock(location string, blockNumber int, data []byte) error {
-	if len(data) > bm.block_size {
+	if len(data) > CONFIG.BlockSize {
 		return fmt.Errorf("data size exceeds block size")
 	}
 
@@ -32,7 +32,7 @@ func (bm *BlockManager) WriteBlock(location string, blockNumber int, data []byte
 	}
 	defer file.Close()
 
-	offset := int64(bm.block_size * blockNumber)
+	offset := int64(CONFIG.BlockSize * blockNumber)
 	_, err = file.Seek(offset, 0)
 	if err != nil {
 		return err
@@ -59,7 +59,7 @@ func (bm *BlockManager) ReadBlock(location string, blockNumber int, direction bo
 			fmt.Println("Error getting file info:", err, " for forwardBlockNumber:", forwardBlockNumber)
 			return nil, err
 		}
-		totalBlocks := int(fileInfo.Size()) / bm.block_size
+		totalBlocks := int(fileInfo.Size()) / CONFIG.BlockSize
 		if blockNumber >= totalBlocks {
 			return nil, io.EOF
 		}
@@ -84,16 +84,16 @@ func (bm *BlockManager) ReadBlock(location string, blockNumber int, direction bo
 	}
 
 	if direction { // true: read from start
-		offset = int64(bm.block_size * blockNumber)
+		offset = int64(CONFIG.BlockSize * blockNumber)
 		if offset >= fileInfo.Size() {
 			return nil, io.EOF
 		}
 	} else { // false: read from end
-		totalBlocks := int(fileInfo.Size()) / bm.block_size
+		totalBlocks := int(fileInfo.Size()) / CONFIG.BlockSize
 		if blockNumber >= totalBlocks {
 			return nil, io.EOF
 		}
-		offset = int64(bm.block_size * (totalBlocks - 1 - blockNumber))
+		offset = int64(CONFIG.BlockSize * (totalBlocks - 1 - blockNumber))
 		if offset < 0 {
 			offset = 0
 		}
@@ -103,7 +103,7 @@ func (bm *BlockManager) ReadBlock(location string, blockNumber int, direction bo
 	if err != nil {
 		return nil, err
 	}
-	buf := make([]byte, bm.block_size)
+	buf := make([]byte, CONFIG.BlockSize)
 	n, err := file.Read(buf)
 	if err != nil {
 		return nil, err
@@ -134,7 +134,7 @@ func (bm *BlockManager) GetFileSizeBlocks(location string) (int, error) {
 	if size == 0 {
 		return 0, nil
 	}
-	return int(size) / bm.block_size, nil
+	return int(size) / CONFIG.BlockSize, nil
 }
 
 func (bm *BlockManager) ClearCache() {

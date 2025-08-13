@@ -109,6 +109,10 @@ func handleCommand(eng *engine.Engine, input string) {
 		handlePrefixIterator(eng, parts)
 	case "PREFIX_SCAN":
 		handlePrefixScan(eng, parts)
+	case "RANGE_SCAN":
+		handleRangeScan(eng, parts)
+	case "RANGE_ITERATE":
+		handleRangeIterate(eng, parts)
 	case "EXIT", "QUIT", "Q":
 		fmt.Printf("%s[INFO]%s Shutting down engine...\n", ColorCyan, ColorReset)
 		eng.Shut()
@@ -211,6 +215,18 @@ func handlePrefixScan(eng *engine.Engine, parts []string) {
 	}
 }
 
+func handleRangeScan(eng *engine.Engine, parts []string) {
+	user := "default"
+	start := parts[1]
+	end := parts[2]
+	pageNum, _ := strconv.Atoi(parts[3])
+	pageSize, _ := strconv.Atoi(parts[4])
+	results := eng.RangeScan(user, start, end, pageNum, pageSize)
+	for i, record := range results {
+		fmt.Printf("%s[%d]%s Key: %s, Value: %s\n", ColorBlue, i+1, ColorReset, record[0], record[1])
+	}
+}
+
 func handlePrefixIterator(eng *engine.Engine, parts []string) {
 	user := "default"
 	prefix := parts[1]
@@ -221,6 +237,54 @@ func handlePrefixIterator(eng *engine.Engine, parts []string) {
 	}
 
 	fmt.Printf("Prefix iterator created for prefix '%s'. Use 'next' to get next record, 'stop' to terminate.\n", prefix)
+
+	for {
+		var command string
+		fmt.Print("Iterator> ")
+		fmt.Scanln(&command)
+
+		switch command {
+		case "next":
+			key, value, hasNext := iterator.Next()
+			if key == "" && value == "" {
+				fmt.Println("No more records.")
+				return
+			}
+			fmt.Printf("Key: %s, Value: %s\n", key, value)
+			if !hasNext {
+				fmt.Println("This was the last record.")
+				return
+			}
+		case "stop":
+			iterator.Stop()
+			fmt.Println("Iterator stopped.")
+			return
+		case "has_next":
+			if iterator.HasNext() {
+				fmt.Println("Iterator has more records.")
+			} else {
+				fmt.Println("Iterator has no more records.")
+			}
+		case "reset":
+			iterator.Reset()
+			fmt.Println("Iterator reset to beginning.")
+		default:
+			fmt.Println("Unknown command. Available commands: next, stop, has_next, reset")
+		}
+	}
+}
+
+func handleRangeIterate(eng *engine.Engine, parts []string) {
+	user := "default"
+	start := parts[1]
+	end := parts[2]
+	iterator, err := eng.RangeIterate(user, start, end)
+	if err != nil {
+		fmt.Printf("Error creating range iterator: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Range iterator created for range '%s' to '%s'. Use 'next' to get next record, 'stop' to terminate.\n", start, end)
 
 	for {
 		var command string

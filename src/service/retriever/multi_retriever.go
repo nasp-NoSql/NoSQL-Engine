@@ -250,73 +250,73 @@ func (mr *MultiRetriever) GetPrefixEntries(prefix string) (map[string]string, er
 	return all_values, nil
 }
 
-// func (mr *MultiRetriever) GetRangeEntries(start string, end string) (map[string]string, error) {
+func (mr *MultiRetriever) GetRangeEntries(start string, end string) (map[string]string, error) {
 
-// 	mr.sstablePaths = []string{}
-// 	for i := 0; i <= CONFIG.LSMLevels; i++ {
-// 		mr.sstablePaths = append(mr.sstablePaths, utils.GetPaths("data/sstable/lvl"+fmt.Sprint(i), ".db")...)
-// 	}
-// 	if len(mr.sstablePaths) == 0 {
-// 		return nil, fmt.Errorf("no SSTables found")
-// 	}
-// 	mr.currentIndex = 0
-// 	mr.fileReader.ResetReader(mr.sstablePaths[mr.currentIndex], false)
-// 	all_values := make(map[string]string)
+	mr.sstablePaths = []string{}
+	for i := 0; i <= CONFIG.LSMLevels; i++ {
+		mr.sstablePaths = append(mr.sstablePaths, utils.GetPaths("data/sstable/lvl"+fmt.Sprint(i), ".db")...)
+	}
+	if len(mr.sstablePaths) == 0 {
+		return nil, fmt.Errorf("no SSTables found")
+	}
+	mr.currentIndex = 0
+	mr.fileReader.ResetReader(mr.sstablePaths[mr.currentIndex], false)
+	all_values := make(map[string]string)
 
-// 	for {
-// 		mr.fileReader.SetDirection(false)
+	for {
+		mr.fileReader.SetDirection(false)
 
-// 		md, err := mr.deserializeMetadata("")
-// 		if err != nil {
-// 			fmt.Printf("Error deserializing metadata in %s: %v\n", mr.sstablePaths[mr.currentIndex], err)
-// 			if !mr.resetToNextSSTable() {
-// 				break
-// 			}
-// 			continue
-// 		}
+		md, err := mr.deserializeMetadata("")
+		if err != nil {
+			fmt.Printf("Error deserializing metadata in %s: %v\n", mr.sstablePaths[mr.currentIndex], err)
+			if !mr.resetToNextSSTable() {
+				break
+			}
+			continue
+		}
 
-// 		sumArray, errSum := mr.deserializeSummary(md)
-// 		fmt.Printf("Summary array for start key %s: %v\n", start, sumArray)
-// 		startingOffset := linearSearch(sumArray, start)
-// 		fmt.Printf("Starting offset for end key %s: %d\n", end, startingOffset)
-// 		endingOffset := linearSearch(sumArray, end)
-// 		if startingOffset == -1 {
-// 			continue
-// 		}
+		sumArray, errSum := mr.deserializeSummary(md)
+		fmt.Printf("Summary array for start key %s: %v\n", start, sumArray)
+		startingOffset := linearSearchForRange(sumArray, start)
+		fmt.Printf("Starting offset for end key %s: %d\n", end, startingOffset)
+		endingOffset := linearSearchForRange(sumArray, end)
+		if startingOffset == -1 {
+			continue
+		}
 
-// 		if errSum != nil {
-// 			fmt.Printf("Error deserializing summary in %s: %v\n", mr.sstablePaths[mr.currentIndex], errSum)
-// 			if !mr.resetToNextSSTable() {
-// 				break
-// 			}
-// 			continue
-// 		}
-// 		//totalBlocks, err := (mr.fileReader.GetFileSizeBlocks())
-// 		fmt.Printf("Starting offset: %d, Ending offset: %d\n", startingOffset, endingOffset)
-// 		offsets, err := mr.searchIndex(int64(startingOffset), int64(endingOffset), "")
-// 		if err != nil {
-// 			break // Break inner loop, try next SSTable
-// 		}
+		if errSum != nil {
+			fmt.Printf("Error deserializing summary in %s: %v\n", mr.sstablePaths[mr.currentIndex], errSum)
+			if !mr.resetToNextSSTable() {
+				break
+			}
+			continue
+		}
+		//totalBlocks, err := (mr.fileReader.GetFileSizeBlocks())
+		fmt.Printf("Starting offset: %d, Ending offset: %d\n", startingOffset, endingOffset)
+		offsets, err := mr.searchIndex(int64(startingOffset), int64(endingOffset), "")
+		fmt.Print("Offsets found: ", offsets, "\n")
+		if err != nil {
+			break // Break inner loop, try next SSTable
+		}
 
-// 		mr.fileReader.SetDirection(true)
-// 		for _, dataOffset := range offsets {
-// 			key, value, dataErr := mr.searchData(dataOffset, prefix)
-// 			all_values[key] = value
-// 			if dataErr != nil {
-// 				fmt.Printf("Error searching data in %s: %v\n", mr.sstablePaths[mr.currentIndex], dataErr)
-// 				break // Break inner loop, try next SSTable
-// 			}
-// 			fmt.Printf("Retrieved value for prefix %s: %s from %s\n", prefix, value, mr.sstablePaths[mr.currentIndex])
-// 		}
-// 		// Found the key, return the value
-// 		// Try next SSTable
-// 		if !mr.resetToNextSSTable() {
-// 			return all_values, nil
-// 		}
-// 	}
-// 	fmt.Println(all_values)
-// 	return all_values, nil
-// }
+		mr.fileReader.SetDirection(true)
+		for _, dataOffset := range offsets {
+			key, value, dataErr := mr.searchDataRange(dataOffset, start, end)
+			all_values[key] = value
+			if dataErr != nil {
+				fmt.Printf("Error searching data in %s: %v\n", mr.sstablePaths[mr.currentIndex], dataErr)
+				break // Break inner loop, try next SSTable
+			}
+		}
+		// Found the key, return the value
+		// Try next SSTable
+		if !mr.resetToNextSSTable() {
+			return all_values, nil
+		}
+	}
+	fmt.Println(all_values)
+	return all_values, nil
+}
 
 func (mr *MultiRetriever) searchData(offset int64, prefix string) (string, string, error) {
 	data, _, err := mr.fileReader.ReadEntry(int(offset))
@@ -339,6 +339,28 @@ func (mr *MultiRetriever) searchData(offset int64, prefix string) (string, strin
 	}
 	fmt.Printf("Data not found for prefix %s at offset %d\n", prefix, offset)
 	return "", "", fmt.Errorf("data not found for prefix %s at offset %d", prefix, offset)
+}
+
+func (mr *MultiRetriever) searchDataRange(offset int64, start string, end string) (string, string, error) {
+	data, _, err := mr.fileReader.ReadEntry(int(offset))
+	if err != nil {
+		return "", "", fmt.Errorf("error reading data at offset %d: %v", offset, err)
+	}
+	offsetInBlock := 0
+	for offsetInBlock < len(data) {
+
+		keyRetrieved, value, off, err := readDataEntry(data[offsetInBlock:])
+		fmt.Print("Key Retrieved: ", keyRetrieved, " Value: ", value, "\n")
+		offsetInBlock += off
+		if err != nil {
+			return "", "", fmt.Errorf("error reading summary entry: %v", err)
+		}
+		if keyRetrieved >= start && keyRetrieved <= end {
+			return keyRetrieved, value, nil
+		}
+	}
+	fmt.Printf("Data not found for range %s - %s at offset %d\n", start, end, offset)
+	return "", "", fmt.Errorf("data not found for range %s - %s at offset %d", start, end, offset)
 }
 
 func (mr *MultiRetriever) deserializeSummary(metadata Metadata) ([]KeyOffset, error) {
